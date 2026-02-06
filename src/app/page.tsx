@@ -17,10 +17,12 @@ import { Plus } from 'lucide-react';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  
   const {
     accounts, categories, transactions, loading: dataLoading,
     addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData
-  } = useFinanceData();
+  } = useFinanceData(selectedMonth);
 
   const [activeTab, setActiveTab] = useState('budget');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export default function Home() {
           <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-6 p-4 text-center">
               <div>
                 <h1 className="text-3xl font-bold mb-2">Welcome to ZeroSum!</h1>
-                <p className="text-slate-500">Let's set up your budget with some default data to get you started.</p>
+                <p className="text-slate-500">Let&apos;s set up your budget with some default data to get you started.</p>
               </div>
               <button onClick={seedData} className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-colors">
                   Initialize Demo Data
@@ -82,7 +84,7 @@ export default function Home() {
 
   const toggleTransactionStatus = (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === 'cleared' ? 'reconciled' : currentStatus === 'reconciled' ? 'uncleared' : 'cleared';
-    updateTransaction(id, { status: nextStatus as any });
+    updateTransaction(id, { status: nextStatus as 'cleared' | 'reconciled' | 'uncleared' });
   };
 
   const handleReconcileFinish = async () => {
@@ -106,6 +108,8 @@ export default function Home() {
           title={activeTab === 'budget' ? 'Budget' : activeTab === 'accounts' ? (selectedAccountId ? activeAccount?.name || 'Accounts' : 'Accounts') : activeTab === 'reports' ? 'Reports' : 'Activity'}
           subtitle={selectedAccountId ? `${activeAccount?.type} Account` : 'Financial control center.'}
           toBeBudgeted={toBeBudgeted}
+          selectedMonth={selectedMonth}
+          onMonthChange={setSelectedMonth}
         />
 
         {activeTab === 'budget' && (

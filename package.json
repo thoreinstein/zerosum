@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "firebase:emulators": "firebase emulators:start"
+    "dev": "npx next dev",
+    "build": "npx next build",
+    "start": "npx next start",
+    "lint": "npx eslint",
+    "firebase:emulators": "npx firebase emulators:start"
   },
   "dependencies": {
     "@genkit-ai/ai": "^1.28.0",
@@ -33,6 +33,6 @@
     "eslint-config-next": "16.1.6",
     "firebase-tools": "^15.5.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }

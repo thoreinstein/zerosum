@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc,
+  collection, query, onSnapshot, updateDoc, doc, deleteDoc,
   orderBy, writeBatch, increment, where, getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -22,6 +22,19 @@ export interface Category {
   hex: string;
 }
 
+export interface CategoryMetadata {
+  id: string;
+  name: string;
+  color: string;
+  hex: string;
+}
+
+export interface MonthlyAllocation {
+  id: string;
+  budgeted: number;
+  spent: number;
+}
+
 export interface Transaction {
   id: string;
   date: string;
@@ -32,7 +45,7 @@ export interface Transaction {
   accountId: string;
 }
 
-export function useFinanceData() {
+export function useFinanceData(selectedMonth: string = new Date().toISOString().slice(0, 7)) {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -41,9 +54,6 @@ export function useFinanceData() {
 
   useEffect(() => {
     if (!user) {
-      setAccounts([]);
-      setCategories([]);
-      setTransactions([]);
       setLoading(false);
       return;
     }
@@ -52,14 +62,39 @@ export function useFinanceData() {
 
     const qAccounts = query(collection(db, 'users', user.uid, 'accounts'));
     const qCategories = query(collection(db, 'users', user.uid, 'categories'));
+    const qMonthly = query(collection(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories'));
     const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
+
+    let metadata: CategoryMetadata[] = [];
+    let allocations: Record<string, MonthlyAllocation> = {};
+
+    const updateMergedCategories = () => {
+      const merged = metadata.map(m => {
+        const alloc = allocations[m.id];
+        return {
+          ...m,
+          budgeted: alloc?.budgeted || 0,
+          spent: alloc?.spent || 0
+        } as Category;
+      });
+      setCategories(merged);
+    };
 
     const unsubAccounts = onSnapshot(qAccounts, (snapshot) => {
       setAccounts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account)));
     });
 
     const unsubCategories = onSnapshot(qCategories, (snapshot) => {
-      setCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
+      metadata = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CategoryMetadata));
+      updateMergedCategories();
+    });
+
+    const unsubMonthly = onSnapshot(qMonthly, (snapshot) => {
+      allocations = {};
+      snapshot.docs.forEach(d => {
+        allocations[d.id] = { id: d.id, ...d.data() } as MonthlyAllocation;
+      });
+      updateMergedCategories();
     });
 
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
@@ -70,9 +105,10 @@ export function useFinanceData() {
     return () => {
       unsubAccounts();
       unsubCategories();
+      unsubMonthly();
       unsubTransactions();
     };
-  }, [user]);
+  }, [user, selectedMonth]);
 
   const addTransaction = async (txData: Omit<Transaction, 'id'>) => {
     if (!user) return;
@@ -87,8 +123,9 @@ export function useFinanceData() {
     if (txData.amount < 0 && txData.category !== 'Inflow') {
         const cat = categories.find(c => c.name === txData.category);
         if (cat) {
-            const catRef = doc(db, 'users', user.uid, 'categories', cat.id);
-            batch.update(catRef, { spent: increment(Math.abs(txData.amount)) });
+            const txMonth = txData.date.slice(0, 7);
+            const catAllocRef = doc(db, 'users', user.uid, 'monthly_budgets', txMonth, 'categories', cat.id);
+            batch.set(catAllocRef, { spent: increment(Math.abs(txData.amount)) }, { merge: true });
         }
     }
 
@@ -102,16 +139,60 @@ export function useFinanceData() {
 
   const updateCategory = async (id: string, data: Partial<Category>) => {
       if (!user) return;
-      await updateDoc(doc(db, 'users', user.uid, 'categories', id), data);
+      const batch = writeBatch(db);
+      
+      // Update metadata if name/color changed
+      if (data.name || data.color || data.hex) {
+          const metaRef = doc(db, 'users', user.uid, 'categories', id);
+          const metaUpdate: Partial<CategoryMetadata> = {};
+          if (data.name) metaUpdate.name = data.name;
+          if (data.color) metaUpdate.color = data.color;
+          if (data.hex) metaUpdate.hex = data.hex;
+          batch.update(metaRef, metaUpdate);
+      }
+
+      // Update monthly allocation if budgeted changed
+      if (data.budgeted !== undefined) {
+          const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', id);
+          batch.set(allocRef, { budgeted: data.budgeted }, { merge: true });
+      }
+
+      await batch.commit();
   };
 
   const addCategory = async (data: Omit<Category, 'id'>) => {
       if (!user) return;
-      await addDoc(collection(db, 'users', user.uid, 'categories'), data);
+      const batch = writeBatch(db);
+      
+      const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
+      const metadata = {
+          name: data.name,
+          color: data.color,
+          hex: data.hex
+      };
+      batch.set(metaRef, metadata);
+
+      const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', metaRef.id);
+      batch.set(allocRef, {
+          budgeted: data.budgeted,
+          spent: data.spent
+      });
+
+      await batch.commit();
   };
 
   const deleteCategory = async (id: string) => {
       if (!user) return;
+      
+      const cat = categories.find(c => c.id === id);
+      if (!cat) return;
+
+      const hasTransactions = transactions.some(t => t.category === cat.name);
+      if (hasTransactions) {
+          alert('Cannot delete category with associated transactions. Please re-categorize transactions first.');
+          return;
+      }
+
       await deleteDoc(doc(db, 'users', user.uid, 'categories', id));
   };
 
@@ -140,12 +221,9 @@ export function useFinanceData() {
         { name: 'Credit Card', type: 'Credit Card', balance: -450 }
       ];
 
-      const accIds: Record<string, string> = {};
-
       for (const acc of accountsData) {
           const ref = doc(collection(db, 'users', user.uid, 'accounts'));
           batch.set(ref, acc);
-          if (acc.name === 'Main Checking') accIds['acc1'] = ref.id;
       }
 
       const categoriesData = [
@@ -158,8 +236,18 @@ export function useFinanceData() {
       ];
 
       for (const cat of categoriesData) {
-          const ref = doc(collection(db, 'users', user.uid, 'categories'));
-          batch.set(ref, cat);
+          const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
+          batch.set(metaRef, {
+              name: cat.name,
+              color: cat.color,
+              hex: cat.hex
+          });
+
+          const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', metaRef.id);
+          batch.set(allocRef, {
+              budgeted: cat.budgeted,
+              spent: cat.spent
+          });
       }
 
       await batch.commit();
