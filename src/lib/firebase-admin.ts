@@ -10,7 +10,7 @@ if (!admin.apps.length) {
       }),
     });
   } catch (error) {
-    console.error('Firebase admin initialization error', error);
+    console.error('Failed to initialize Firebase Admin SDK. Check your environment variables (FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY)', error);
   }
 }
 

@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Firebase configuration files (project-specific)
+.firebaserc
+
 # Firebase build and deployment files
 firebase-debug.log
 firebase-debug.*.log
