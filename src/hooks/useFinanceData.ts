@@ -264,6 +264,45 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     setTransactions(transactionsData);
   }, [categoriesMetadata, transactionsData, allocationsData, accounts, selectedMonth]);
 
+  // Ensure Credit Card Payment categories exist
+  useEffect(() => {
+    if (loading || categoriesMetadata.length === 0) return;
+    
+    const ccAccounts = accounts.filter(a => a.type === 'Credit Card');
+    if (ccAccounts.length === 0) return;
+
+    // Check if we need to create any categories
+    const batch = writeBatch(db);
+    let hasUpdates = false;
+
+    ccAccounts.forEach(acc => {
+      const paymentCat = categoriesMetadata.find(c => c.isCcPayment && c.linkedAccountId === acc.id);
+      if (!paymentCat) {
+        hasUpdates = true;
+        const newCatRef = doc(collection(db, 'users', user!.uid, 'categories'));
+        batch.set(newCatRef, {
+          name: `Credit Card Payment: ${acc.name}`,
+          color: 'bg-slate-400', 
+          hex: '#94a3b8',
+          isCcPayment: true,
+          linkedAccountId: acc.id
+        });
+        
+        const allocId = `${selectedMonth}_${newCatRef.id}`;
+        const allocRef = doc(db, 'users', user!.uid, 'monthly_allocations', allocId);
+        batch.set(allocRef, {
+          month: selectedMonth,
+          categoryId: newCatRef.id,
+          budgeted: 0
+        });
+      }
+    });
+
+    if (hasUpdates) {
+      batch.commit().catch(err => console.error('Failed to ensure CC categories', err));
+    }
+  }, [accounts, categoriesMetadata, user, selectedMonth, loading]);
+
   const [pendingMutations, setPendingMutations] = useState<PendingMutation[]>([]);
   const isInitialized = useRef(false);
 
@@ -330,7 +369,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     }
   };
 
-  const updateTransaction = async (id: string, data: Partial<Transaction>) => {
+  const updateTransaction = async (id: string, data: Partial<Transaction>, balanceDelta?: number) => {
       if (!user) return;
       
       const original = transactionsData.find(t => t.id === id);
@@ -338,18 +377,34 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
       // Optimistic Update
       setTransactionsData(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+      if (balanceDelta && original.accountId) {
+          setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance + balanceDelta } : a));
+      }
 
       try {
-        await updateDoc(doc(db, 'users', user.uid, 'transactions', id), data);
+        const batch = writeBatch(db);
+        const txRef = doc(db, 'users', user.uid, 'transactions', id);
+        batch.update(txRef, data);
+        
+        if (balanceDelta && original.accountId) {
+             const accRef = doc(db, 'users', user.uid, 'accounts', original.accountId);
+             batch.update(accRef, { balance: increment(balanceDelta) });
+        }
+
+        await batch.commit();
       } catch (error) {
         console.error('Failed to update transaction:', error);
         // Rollback
         setTransactionsData(prev => prev.map(t => t.id === id ? original : t));
+        if (balanceDelta && original.accountId) {
+            setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance - balanceDelta } : a));
+        }
+        
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'update',
           entity: 'transaction',
-          data: { id, ...data },
+          data: { id, ...data, balanceDelta },
           timestamp: Date.now()
         }]);
       }
@@ -361,6 +416,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       const originalMeta = categoriesMetadata.find(c => c.id === id);
       const originalAlloc = allocationsData.find(a => a.categoryId === id && a.month === selectedMonth);
       if (!originalMeta) return;
+
+      if (originalMeta.isRta && data.name) {
+          addToast('Cannot rename the Ready to Assign category.', 'error');
+          return;
+      }
 
       // Optimistic Update
       if (data.budgeted !== undefined) {
@@ -381,9 +441,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         
         // Update metadata if name/color/targets changed
         if (data.name || data.color || data.hex || data.targetType !== undefined || data.targetAmount !== undefined || data.targetDate !== undefined) {
-            if (originalMeta.isRta && data.name) {
-                throw new Error('Cannot rename the Ready to Assign category.');
-            }
             const metaRef = doc(db, 'users', user.uid, 'categories', id);
             const metaUpdate: Partial<CategoryMetadata> = {};
             if (data.name) metaUpdate.name = data.name;
@@ -540,11 +597,12 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     try {
       if (mutation.entity === 'transaction') {
         if (mutation.type === 'add') {
-          await addTransaction(mutation.data as unknown as Omit<Transaction, 'id'>);
+          const { id, ...txData } = mutation.data as any;
+          await addTransaction(txData, id);
         }
         if (mutation.type === 'update') {
-          const { id, ...updateData } = mutation.data as Partial<Transaction> & { id: string };
-          await updateTransaction(id, updateData as Partial<Transaction>);
+          const { id, balanceDelta, ...updateData } = mutation.data as Partial<Transaction> & { id: string, balanceDelta?: number };
+          await updateTransaction(id, updateData as Partial<Transaction>, balanceDelta);
         }
       } else if (mutation.entity === 'category') {
         if (mutation.type === 'add') {

@@ -12,7 +12,7 @@ const STORE_NAME = 'receipt_images';
 
 export function useAIQueue(
   transactions: Transaction[],
-  updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>,
+  updateTransaction: (id: string, data: Partial<Transaction>, balanceDelta?: number) => Promise<void>,
   categoryNames: string[]
 ) {
   const { user } = useAuth();
@@ -52,7 +52,7 @@ export function useAIQueue(
     }
   }, [initDB]);
 
-  const getImage = useCallback(async (txId: string): Promise<string> => {
+  const getImage = useCallback(async (txId: string): Promise<string | undefined> => {
     const db = await initDB();
     try {
       return await new Promise((resolve, reject) => {
@@ -109,15 +109,7 @@ export function useAIQueue(
             date: date || tx.date,
             category: category || tx.category,
             scanStatus: 'completed'
-          });
-
-          // 2. Adjust account balance separately if needed
-          if (diff !== 0) {
-            const batch = writeBatch(db);
-            const accRef = doc(db, 'users', user.uid, 'accounts', tx.accountId);
-            batch.update(accRef, { balance: increment(diff) });
-            await batch.commit();
-          }
+          }, diff !== 0 ? diff : undefined);
 
           await deleteImage(tx.id);
         } else {
