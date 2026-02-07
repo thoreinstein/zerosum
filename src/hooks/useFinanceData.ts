@@ -262,8 +262,7 @@ export function useFinanceData(monthOverride?: string) {
   useEffect(() => {
     if (!user) return;
     
-    // We fetch ALL for now to support accurate running balances, 
-    // but in future could optimize windowing here.
+    // We fetch ALL for now to support accurate running balances
     const qMonthly = query(collection(db, 'users', user.uid, 'monthly_allocations'));
     const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
 
