@@ -256,14 +256,10 @@ export function useFinanceData(monthOverride?: string) {
         } as Category;
       });
 
-      // Update global cache
-      setBudgetCache(m, merged);
-      if (m !== selectedMonth) {
-        console.log(`[FinanceData] Background calculated and cached: ${m}`);
-      }
-
-      // If this is the active month, set local state for immediate UI feedback
+      // Only update global cache for the active month to avoid excessive provider updates
       if (m === selectedMonth) {
+        setBudgetCache(m, merged);
+        // If this is the active month, set local state for immediate UI feedback
         setCategories(merged);
       }
     });
