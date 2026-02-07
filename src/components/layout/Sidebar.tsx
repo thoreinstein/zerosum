@@ -25,6 +25,7 @@ export default function Sidebar({ activeTab, setActiveTab, isDarkMode, toggleDar
           onClick={toggleDarkMode}
           className="p-3 rounded-2xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
           title={isDarkMode ? "Light Mode" : "Dark Mode"}
+          aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
         </button>
@@ -32,6 +33,7 @@ export default function Sidebar({ activeTab, setActiveTab, isDarkMode, toggleDar
           onClick={onOpenSettings}
           className="p-3 rounded-2xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
           title="Settings"
+          aria-label="Open Settings"
         >
           <Settings size={24} />
         </button>
@@ -45,6 +47,7 @@ function NavButton({ active, onClick, icon, title }: { active: boolean; onClick:
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className={`p-3 rounded-2xl transition-all ${
         active
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:scale-105'
