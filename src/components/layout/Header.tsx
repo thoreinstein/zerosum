@@ -52,7 +52,11 @@ export default function Header({
         <div>
           <div className="flex items-center gap-2">
             {isBudgetTab && (
-              <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
+              <button 
+                onClick={handlePrevMonth} 
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+                aria-label="Previous Month"
+              >
                 <ChevronLeft size={20} />
               </button>
             )}
@@ -65,7 +69,11 @@ export default function Header({
               )}
             </h1>
             {isBudgetTab && (
-              <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
+              <button 
+                onClick={handleNextMonth} 
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+                aria-label="Next Month"
+              >
                 <ChevronRight size={20} />
               </button>
             )}
@@ -117,7 +125,7 @@ export default function Header({
             className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-white dark:border-slate-800 shadow-sm relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
             <img
-              alt="User Profile"
+              alt=""
               src={user?.photoURL || "https://lh3.googleusercontent.com/aida-public/AB6AXuCQJAyWgraP0W0NVA9Rf7gvjXLfhcL_fMrBFXorVyQd4sbJcqifFS5OX7PtQz4TxGtTeJFpDoy1ECt_8KGywRAilAczS-4fJAFW3cF2gFNLq6_qJ_RuWM4Ufp3UYHph9IffLwQ--ainhsUFFwgY2jdXIuWk2EgfjoVnPnpkhsITL8fvTVn6qXQgtyiMmJvgSuzT3wGPHYoSHdW1x9AQK6aCghMpvhPF52aR7d5DvsgULJryQ5kipT6kjjZoI4f_o1eAPU6PgiQjaWY"}
               className="w-full h-full object-cover"
             />
