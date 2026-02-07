@@ -1,4 +1,4 @@
-import { LayoutDashboard, Landmark, Receipt, ChartPie, Settings } from 'lucide-react';
+import { LayoutDashboard, Landmark, Receipt, ChartPie } from 'lucide-react';
 
 interface MobileNavProps {
   activeTab: string;
