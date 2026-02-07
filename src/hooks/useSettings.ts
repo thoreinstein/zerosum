@@ -13,14 +13,22 @@ export function useSettings() {
     try {
       // 1. Attempt to wait for pending writes (5s timeout)
       const waitPromise = waitForPendingWrites(db);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout waiting for pending writes')), 5000)
-      );
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Timeout waiting for pending writes')),
+          5000
+        );
+      });
 
       try {
         await Promise.race([waitPromise, timeoutPromise]);
       } catch (e) {
         console.warn('Proceeding with refresh despite pending writes timeout or error:', e);
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       }
 
       // 2. Terminate Firestore
