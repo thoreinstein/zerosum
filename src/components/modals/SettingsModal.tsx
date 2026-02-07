@@ -18,7 +18,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       <div className="bg-white dark:bg-slate-900 rounded-t-[2rem] md:rounded-[2rem] w-full max-w-lg h-[80vh] md:h-auto overflow-y-auto animate-in slide-in-from-bottom duration-300">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-900 z-10">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Settings</h2>
-          <button onClick={onClose} className="text-slate-400 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors">
+          <button 
+            onClick={onClose} 
+            className="text-slate-400 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors"
+            aria-label="Close Settings"
+          >
             <X size={24} />
           </button>
         </div>
