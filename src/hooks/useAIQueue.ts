@@ -33,35 +33,47 @@ export function useAIQueue(
 
   const storeImage = useCallback(async (txId: string, base64Image: string) => {
     const db = await initDB();
-    return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(base64Image, txId);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(base64Image, txId);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
   }, [initDB]);
 
   const getImage = useCallback(async (txId: string): Promise<string> => {
     const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(txId);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(txId);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
   }, [initDB]);
 
   const deleteImage = useCallback(async (txId: string) => {
     const db = await initDB();
-    return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(txId);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.delete(txId);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
   }, [initDB]);
 
   const processQueue = useCallback(async () => {
