@@ -4,12 +4,13 @@ import {
   getDocs, 
   writeBatch, 
   doc, 
-  Firestore 
+  Firestore,
+  limit
 } from 'firebase/firestore';
 
 export async function checkAndSeedColdStart(db: Firestore, uid: string, selectedMonth: string) {
   // Idempotency check: only seed if no accounts exist
-  const q = query(collection(db, 'users', uid, 'accounts'));
+  const q = query(collection(db, 'users', uid, 'accounts'), limit(1));
   const snapshot = await getDocs(q);
   if (!snapshot.empty) return;
 
