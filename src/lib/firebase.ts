@@ -4,10 +4,7 @@ import {
   initializeFirestore, 
   persistentLocalCache, 
   persistentMultipleTabManager,
-  Firestore,
-  terminate,
-  clearIndexedDbPersistence,
-  waitForPendingWrites
+  Firestore
 } from 'firebase/firestore';
 
 const firebaseConfig = {
