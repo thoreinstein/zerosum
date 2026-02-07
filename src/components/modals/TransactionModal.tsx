@@ -17,7 +17,7 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
     type: 'outflow',
     date: new Date().toISOString().split('T')[0],
     payee: '',
-    category: 'Inflow',
+    category: 'Ready to Assign',
     amount: '',
     accountId: defaultAccountId || (accounts[0] ? accounts[0].id : '')
   });
@@ -92,7 +92,7 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
     e.preventDefault();
     const amountVal = parseFloat(formData.amount);
 
-    const isCategoryInflow = formData.category === 'Inflow';
+    const isCategoryInflow = formData.category === 'Ready to Assign';
     const finalAmount = isCategoryInflow ? Math.abs(amountVal) : -Math.abs(amountVal);
 
     await onAddTransaction({
@@ -108,7 +108,7 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
         type: 'outflow',
         date: new Date().toISOString().split('T')[0],
         payee: '',
-        category: 'Inflow',
+        category: 'Ready to Assign',
         amount: '',
         accountId: formData.accountId
     });
@@ -168,7 +168,6 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-bold text-slate-400">Category</label>
                 <select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm text-slate-900 dark:text-slate-100">
-                  <option value="Inflow">Inflow</option>
                   {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>

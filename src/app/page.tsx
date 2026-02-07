@@ -31,10 +31,10 @@ export default function Home() {
   const [isReconciling, setIsReconciling] = useState(false);
 
   // Computed
-  const totalBudgeted = useMemo(() => categories.reduce((sum, cat) => sum + cat.budgeted, 0), [categories]);
+  const totalBudgeted = useMemo(() => categories.filter(c => !c.isRta).reduce((sum, cat) => sum + cat.budgeted, 0), [categories]);
   const totalSpent = useMemo(() => categories.reduce((sum, cat) => sum + cat.spent, 0), [categories]);
   const totalInflowValue = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
-  const toBeBudgeted = totalInflowValue - totalBudgeted;
+  const rtaBalance = totalInflowValue - totalBudgeted;
 
   const activeAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
 
@@ -107,7 +107,7 @@ export default function Home() {
         <Header
           title={activeTab === 'budget' ? 'Budget' : activeTab === 'accounts' ? (selectedAccountId ? activeAccount?.name || 'Accounts' : 'Accounts') : activeTab === 'reports' ? 'Reports' : 'Activity'}
           subtitle={selectedAccountId ? `${activeAccount?.type} Account` : 'Financial control center.'}
-          toBeBudgeted={toBeBudgeted}
+          rtaBalance={rtaBalance}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
         />

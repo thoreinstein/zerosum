@@ -62,10 +62,12 @@ export default function BudgetView({ categories, totalBudgeted, totalSpent, upda
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.hex }}></div>
                   <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{cat.name}</span>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 ml-2">
-                    <button onClick={() => handleEdit(cat)} className="text-slate-400 hover:text-blue-500"><Edit2 size={12} /></button>
-                    <button onClick={() => handleDelete(cat.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
-                  </div>
+                  {!cat.isRta && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 ml-2">
+                      <button onClick={() => handleEdit(cat)} className="text-slate-400 hover:text-blue-500"><Edit2 size={12} /></button>
+                      <button onClick={() => handleDelete(cat.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                    </div>
+                  )}
                 </div>
                 <span className="text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 px-2 py-1 rounded-lg">
                   ${(cat.budgeted - cat.spent).toLocaleString()}
@@ -75,15 +77,19 @@ export default function BudgetView({ categories, totalBudgeted, totalSpent, upda
                 <div className="flex-1 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full opacity-60 transition-all duration-500" style={{ backgroundColor: cat.hex, width: `${Math.min((cat.spent / (cat.budgeted || 1)) * 100, 100)}%` }}></div>
                 </div>
-                <input
-                  type="number"
-                  value={cat.budgeted}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || 0;
-                    updateCategory(cat.id, { budgeted: val });
-                  }}
-                  className="w-16 text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
-                />
+                {!cat.isRta ? (
+                  <input
+                    type="number"
+                    value={cat.budgeted}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      updateCategory(cat.id, { budgeted: val });
+                    }}
+                    className="w-16 text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
+                  />
+                ) : (
+                  <div className="w-16 h-4" />
+                )}
               </div>
             </div>
           ))}

@@ -4,12 +4,12 @@ import { LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 interface HeaderProps {
   title: string;
   subtitle: string;
-  toBeBudgeted: number;
+  rtaBalance: number;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
 }
 
-export default function Header({ title, subtitle, toBeBudgeted, selectedMonth, onMonthChange }: HeaderProps) {
+export default function Header({ title, subtitle, rtaBalance, selectedMonth, onMonthChange }: HeaderProps) {
   const { logout } = useAuth();
 
   const handlePrevMonth = () => {
@@ -55,11 +55,13 @@ export default function Header({ title, subtitle, toBeBudgeted, selectedMonth, o
         </p>
       </div>
       <div className="flex items-center gap-4">
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Ready to Assign</p>
-          <p className={`text-lg md:text-2xl font-bold ${toBeBudgeted < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-            ${toBeBudgeted.toLocaleString()}
+        <div className="text-right flex flex-col items-end">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">
+            {rtaBalance > 0 ? 'Ready to Assign' : rtaBalance < 0 ? 'Overbudgeted' : 'All Money Assigned'}
           </p>
+          <div className={`px-4 py-2 rounded-2xl ${rtaBalance > 0 ? 'bg-emerald-500/10 text-emerald-500' : rtaBalance < 0 ? 'bg-red-500/10 text-red-500' : 'bg-slate-500/10 text-slate-500'} font-bold text-lg md:text-2xl transition-all`}>
+            ${rtaBalance.toLocaleString()}
+          </div>
         </div>
         <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sign Out">
           <LogOut size={20} />

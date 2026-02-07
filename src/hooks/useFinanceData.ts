@@ -20,6 +20,7 @@ export interface Category {
   spent: number;
   color: string;
   hex: string;
+  isRta?: boolean;
 }
 
 export interface CategoryMetadata {
@@ -27,6 +28,7 @@ export interface CategoryMetadata {
   name: string;
   color: string;
   hex: string;
+  isRta?: boolean;
 }
 
 export interface MonthlyAllocation {
@@ -141,8 +143,15 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       if (!user) return;
       const batch = writeBatch(db);
       
+      const cat = categories.find(c => c.id === id);
+      if (!cat) return;
+
       // Update metadata if name/color changed
       if (data.name || data.color || data.hex) {
+          if (cat.isRta && data.name) {
+              alert('Cannot rename the Ready to Assign category.');
+              return;
+          }
           const metaRef = doc(db, 'users', user.uid, 'categories', id);
           const metaUpdate: Partial<CategoryMetadata> = {};
           if (data.name) metaUpdate.name = data.name;
@@ -168,7 +177,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       const metadata = {
           name: data.name,
           color: data.color,
-          hex: data.hex
+          hex: data.hex,
+          isRta: data.isRta || false
       };
       batch.set(metaRef, metadata);
 
@@ -186,6 +196,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       
       const cat = categories.find(c => c.id === id);
       if (!cat) return;
+
+      if (cat.isRta) {
+          alert('Cannot delete the Ready to Assign category.');
+          return;
+      }
 
       const hasTransactions = transactions.some(t => t.category === cat.name);
       if (hasTransactions) {
@@ -227,6 +242,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       }
 
       const categoriesData = [
+        { name: 'Ready to Assign', budgeted: 0, spent: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
         { name: 'Rent / Mortgage', budgeted: 1500, spent: 1500, color: 'bg-blue-500', hex: '#3b82f6' },
         { name: 'Electric', budgeted: 120, spent: 110, color: 'bg-yellow-500', hex: '#eab308' },
         { name: 'Internet', budgeted: 80, spent: 80, color: 'bg-indigo-500', hex: '#6366f1' },
@@ -240,7 +256,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           batch.set(metaRef, {
               name: cat.name,
               color: cat.color,
-              hex: cat.hex
+              hex: cat.hex,
+              isRta: cat.isRta || false
           });
 
           const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', metaRef.id);

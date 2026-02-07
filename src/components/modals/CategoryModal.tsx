@@ -16,11 +16,16 @@ export default function CategoryModal({ isOpen, onClose, category, onSave }: Cat
   });
 
   useEffect(() => {
-    if (category) {
-      setFormData({ name: category.name, hex: category.hex, color: category.color });
-    } else {
-      setFormData({ name: '', hex: '#3b82f6', color: 'bg-blue-500' });
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormData(prev => {
+      if (category) {
+        if (prev.name === category.name && prev.hex === category.hex) return prev;
+        return { name: category.name, hex: category.hex, color: category.color };
+      } else {
+        if (prev.name === '' && prev.hex === '#3b82f6') return prev;
+        return { name: '', hex: '#3b82f6', color: 'bg-blue-500' };
+      }
+    });
   }, [category, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
