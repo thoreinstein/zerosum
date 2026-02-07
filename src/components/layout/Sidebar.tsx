@@ -5,9 +5,10 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, isDarkMode, toggleDarkMode }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, isDarkMode, toggleDarkMode, onOpenSettings }: SidebarProps) {
   return (
     <aside className="hidden md:flex w-20 border-r border-slate-200 dark:border-slate-800 flex-col items-center py-8 gap-8 bg-white dark:bg-slate-900 z-10 sticky top-0 h-screen">
       <div className="p-2 rounded-xl bg-blue-600/10 text-blue-600">
@@ -28,6 +29,7 @@ export default function Sidebar({ activeTab, setActiveTab, isDarkMode, toggleDar
           {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
         </button>
         <button
+          onClick={onOpenSettings}
           className="p-3 rounded-2xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
           title="Settings"
         >

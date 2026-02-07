@@ -14,6 +14,7 @@ import TransactionsView from '@/components/views/TransactionsView';
 import ReportsView from '@/components/views/ReportsView';
 import TransactionModal from '@/components/modals/TransactionModal';
 import ReconcileModal from '@/components/modals/ReconcileModal';
+import SettingsModal from '@/components/modals/SettingsModal';
 import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAIQueue } from '@/hooks/useAIQueue';
 
@@ -34,6 +35,7 @@ export default function Home() {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
 
   // Computed
@@ -102,6 +104,7 @@ export default function Home() {
         setActiveTab={(t) => { setActiveTab(t); setSelectedAccountId(null); }}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        onOpenSettings={() => setShowSettingsModal(true)}
       />
 
       <main className="flex-1 flex flex-col pb-24 md:pb-0 overflow-y-auto custom-scrollbar relative px-4 md:px-8">
@@ -177,6 +180,11 @@ export default function Home() {
         }}
         defaultAccountId={selectedAccountId || undefined}
         storeImage={storeImage}
+      />
+
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
       />
 
       {selectedAccountId && activeAccount && (
