@@ -1,4 +1,4 @@
-import { LayoutDashboard, Landmark, Receipt, ChartPie, Sun, Moon, Wallet } from 'lucide-react';
+import { LayoutDashboard, Landmark, Receipt, ChartPie, Sun, Moon, Wallet, Settings } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -14,24 +14,39 @@ export default function Sidebar({ activeTab, setActiveTab, isDarkMode, toggleDar
         <Wallet size={32} />
       </div>
       <nav className="flex flex-col gap-6 flex-1">
-        <NavButton active={activeTab === 'budget'} onClick={() => setActiveTab('budget')} icon={<LayoutDashboard />} />
-        <NavButton active={activeTab === 'accounts'} onClick={() => setActiveTab('accounts')} icon={<Landmark />} />
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<Receipt />} />
-        <NavButton active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<ChartPie />} />
+        <NavButton active={activeTab === 'budget'} onClick={() => setActiveTab('budget')} icon={<LayoutDashboard size={24} />} title="Budget" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<Receipt size={24} />} title="Transactions" />
+        <NavButton active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<ChartPie size={24} />} title="Reports" />
+        <NavButton active={activeTab === 'accounts'} onClick={() => setActiveTab('accounts')} icon={<Landmark size={24} />} title="Accounts" />
       </nav>
-      <button onClick={toggleDarkMode} className="p-3 rounded-2xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-        {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
-      </button>
+      <div className="flex flex-col gap-4 mt-auto">
+        <button
+          onClick={toggleDarkMode}
+          className="p-3 rounded-2xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+          title={isDarkMode ? "Light Mode" : "Dark Mode"}
+        >
+          {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
+        </button>
+        <button
+          className="p-3 rounded-2xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+          title="Settings"
+        >
+          <Settings size={24} />
+        </button>
+      </div>
     </aside>
   );
 }
 
-function NavButton({ active, onClick, icon }: { active: boolean; onClick: () => void; icon: React.ReactNode }) {
+function NavButton({ active, onClick, icon, title }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       className={`p-3 rounded-2xl transition-all ${
-        active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        active
+          ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:scale-105'
+          : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200'
       }`}
     >
       {icon}
