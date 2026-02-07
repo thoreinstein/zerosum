@@ -144,6 +144,7 @@ export default function Home() {
             transactions={transactions} 
             categories={categories} 
             totalSpent={totalSpent} 
+            selectedMonth={selectedMonth}
           />
         )}
 

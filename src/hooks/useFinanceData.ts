@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   collection, query, onSnapshot, updateDoc, doc, deleteDoc,
-  orderBy, writeBatch, increment, where, getDocs
+  orderBy, writeBatch, increment, where, getDocs, limit
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
