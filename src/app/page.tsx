@@ -19,7 +19,7 @@ import { useAIQueue } from '@/hooks/useAIQueue';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const { selectedMonth, setSelectedMonth } = useFinance();
+  const { selectedMonth, setSelectedMonth, refreshTransactions } = useFinance();
   
   const {
     accounts, categories, transactions, loading: dataLoading,
@@ -170,6 +170,7 @@ export default function Home() {
         categories={categories}
         onAddTransaction={async (data) => {
            await addTransaction(data);
+           refreshTransactions();
            setShowTransactionModal(false);
         }}
         defaultAccountId={selectedAccountId || undefined}

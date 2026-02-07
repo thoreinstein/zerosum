@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   collection, query, orderBy, limit, startAfter, getDocs, where, QueryDocumentSnapshot, DocumentData 
 } from 'firebase/firestore';
@@ -8,6 +8,8 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from './useFinanceData';
+
+const PAGE_SIZE = 20;
 
 export interface TransactionFilters {
   startDate?: string;
@@ -19,34 +21,42 @@ export interface TransactionFilters {
 
 export function usePaginatedTransactions(filters: TransactionFilters = {}) {
   const { user } = useAuth();
-  const { selectedMonth } = useFinance();
+  const { selectedMonth, refreshKey } = useFinance();
   const { accountId, status, startDate: filterStartDate, endDate: filterEndDate, searchQuery } = filters;
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-
-  const PAGE_SIZE = 20;
+  
+  // Internal tracking refs to keep fetchTransactions identity stable
+  const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const hasMoreRef = useRef(true);
+  const isFetchingRef = useRef(false);
 
   const fetchTransactions = useCallback(async (isNextPage = false) => {
-    if (!user) return;
+    if (!user || isFetchingRef.current) return;
     
-    if (isNextPage) setLoadingMore(true);
-    else {
+    if (isNextPage) {
+      if (!hasMoreRef.current) return;
+      setLoadingMore(true);
+    } else {
       setLoading(true);
       setTransactions([]);
-      setLastDoc(null);
+      lastDocRef.current = null;
+      hasMoreRef.current = true;
       setHasMore(true);
     }
 
+    isFetchingRef.current = true;
+
     try {
       let q = query(collection(db, 'users', user.uid, 'transactions'));
+      // ... query building logic
 
+      // 1. Apply WHERE / ORDER BY constraints FIRST
       if (searchQuery && searchQuery.trim() !== '') {
         // Keyword search (Starts-with)
-        // Firestore requires range filters to be the first orderBy field
         q = query(
           q,
           where('payee', '>=', searchQuery),
@@ -56,22 +66,26 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
         );
       } else {
         // Date range filtering
-        let rangeStart = filterStartDate;
-        let rangeEnd = filterEndDate;
-
-        if (!rangeStart || !rangeEnd) {
-          rangeStart = `${selectedMonth}-01`;
+        const hasCustomDate = filterStartDate || filterEndDate;
+        
+        if (hasCustomDate) {
+          if (filterStartDate) {
+            q = query(q, where('date', '>=', filterStartDate));
+          }
+          if (filterEndDate) {
+            q = query(q, where('date', '<', filterEndDate));
+          }
+        } else {
+          // Default to month window
+          const startOfMonth = `${selectedMonth}-01`;
           const nextMonthDate = new Date(selectedMonth + '-01');
           nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-          rangeEnd = nextMonthDate.toISOString().slice(0, 7) + '-01';
+          const endOfMonth = nextMonthDate.toISOString().slice(0, 7) + '-01';
+          
+          q = query(q, where('date', '>=', startOfMonth), where('date', '<', endOfMonth));
         }
 
-        q = query(
-          q,
-          where('date', '>=', rangeStart),
-          where('date', '<', rangeEnd),
-          orderBy('date', 'desc')
-        );
+        q = query(q, orderBy('date', 'desc'));
       }
 
       if (accountId) {
@@ -82,10 +96,11 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
         q = query(q, where('status', '==', status));
       }
 
+      // 2. Apply PAGINATION constraints LAST
       q = query(q, limit(PAGE_SIZE));
 
-      if (isNextPage && lastDoc) {
-        q = query(q, startAfter(lastDoc));
+      if (isNextPage && lastDocRef.current) {
+        q = query(q, startAfter(lastDocRef.current));
       }
 
       const snapshot = await getDocs(q);
@@ -101,28 +116,33 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
         setTransactions(newTransactions);
       }
 
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === PAGE_SIZE);
+      lastDocRef.current = snapshot.docs[snapshot.docs.length - 1] || null;
+      const more = snapshot.docs.length === PAGE_SIZE;
+      hasMoreRef.current = more;
+      setHasMore(more);
     } catch (error) {
       console.error("Error fetching transactions:", error);
+      hasMoreRef.current = false;
       setHasMore(false);
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      isFetchingRef.current = false;
     }
-  }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate, searchQuery, lastDoc]);
+  }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate, searchQuery]);
 
   // Initial fetch
   useEffect(() => {
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate, searchQuery]);
+  }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate, searchQuery, refreshKey]);
 
   return {
     transactions,
     loading,
     loadingMore,
     hasMore,
-    fetchNextPage: () => !loadingMore && hasMore && fetchTransactions(true)
+    fetchNextPage: useCallback(() => fetchTransactions(true), [fetchTransactions]),
+    refresh: useCallback(() => fetchTransactions(false), [fetchTransactions])
   };
 }
