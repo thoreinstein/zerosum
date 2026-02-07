@@ -102,11 +102,8 @@ export function useAIQueue(
           const finalAmount = amount ? -Math.abs(amount) : 0;
           const diff = finalAmount - tx.amount;
 
-          const batch = writeBatch(db);
-          const txRef = doc(db, 'users', user.uid, 'transactions', tx.id);
-          const accRef = doc(db, 'users', user.uid, 'accounts', tx.accountId);
-
-          batch.update(txRef, {
+          // 1. Update the transaction via the mutation framework (handles rollback/retry)
+          await updateTransaction(tx.id, {
             payee: payee || tx.payee,
             amount: finalAmount,
             date: date || tx.date,
@@ -114,11 +111,14 @@ export function useAIQueue(
             scanStatus: 'completed'
           });
 
+          // 2. Adjust account balance separately if needed
           if (diff !== 0) {
+            const batch = writeBatch(db);
+            const accRef = doc(db, 'users', user.uid, 'accounts', tx.accountId);
             batch.update(accRef, { balance: increment(diff) });
+            await batch.commit();
           }
 
-          await batch.commit();
           await deleteImage(tx.id);
         } else {
           console.error('Scan failed:', result.error);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   collection, query, onSnapshot, updateDoc, doc, deleteDoc,
   orderBy, writeBatch, increment, where, getDocs
@@ -12,6 +12,12 @@ export interface PendingMutation {
   entity: 'transaction' | 'category';
   data: Record<string, unknown>;
   timestamp: number;
+}
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'error' | 'success' | 'info';
 }
 
 export interface Account {
@@ -83,6 +89,17 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     monthly: false,
     transactions: false
   });
+
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+
+  const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
+    const id = crypto.randomUUID();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  }, []);
 
   const hasPendingWrites = useMemo(() => Object.values(syncStatus).some(v => v), [syncStatus]);
 
@@ -304,7 +321,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       console.error('Failed to add transaction:', error);
       // Even with latency compensation, we add to pending for retry if the write fails globally.
       setPendingMutations(prev => [...prev, {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         type: 'add',
         entity: 'transaction',
         data: txData,
@@ -329,7 +346,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         // Rollback
         setTransactionsData(prev => prev.map(t => t.id === id ? original : t));
         setPendingMutations(prev => [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           type: 'update',
           entity: 'transaction',
           data: { id, ...data },
@@ -399,7 +416,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           setCategoriesMetadata(prev => prev.map(c => c.id === id ? originalMeta : c));
         }
         setPendingMutations(prev => [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           type: 'update',
           entity: 'category',
           data: { id, ...data },
@@ -461,7 +478,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         setCategoriesMetadata(prev => prev.filter(c => c.id !== catId));
         setAllocationsData(prev => prev.filter(a => a.categoryId !== catId));
         setPendingMutations(prev => [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           type: 'add',
           entity: 'category',
           data,
@@ -478,13 +495,13 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       if (!originalMeta) return;
 
       if (originalMeta.isRta) {
-          alert('Cannot delete the Ready to Assign category.');
+          addToast('Cannot delete the Ready to Assign category.', 'error');
           return;
       }
 
       const hasTransactions = transactionsData.some(t => t.category === originalMeta.name);
       if (hasTransactions) {
-          alert('Cannot delete category with associated transactions. Please re-categorize transactions first.');
+          addToast('Cannot delete category with associated transactions. Please re-categorize transactions first.', 'error');
           return;
       }
 
@@ -500,7 +517,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         setCategoriesMetadata(prev => [...prev, originalMeta]);
         setAllocationsData(prev => [...prev, ...originalAllocs]);
         setPendingMutations(prev => [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           type: 'delete',
           entity: 'category',
           data: { id },
@@ -511,18 +528,37 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
   const retryMutation = async (mutationId: string) => {
     const mutation = pendingMutations.find(m => m.id === mutationId);
-    if (!mutation) return;
+    if (!mutation || retryingIds.has(mutationId)) return;
 
-    // Remove from pending before retrying
-    setPendingMutations(prev => prev.filter(m => m.id !== mutationId));
+    // Set loading state
+    setRetryingIds(prev => {
+      const next = new Set(prev);
+      next.add(mutationId);
+      return next;
+    });
 
-    if (mutation.entity === 'transaction') {
-      if (mutation.type === 'add') await addTransaction(mutation.data as unknown as Omit<Transaction, 'id'>);
-      if (mutation.type === 'update') await updateTransaction(mutation.data.id as string, mutation.data as Partial<Transaction>);
-    } else if (mutation.entity === 'category') {
-      if (mutation.type === 'add') await addCategory(mutation.data as unknown as Omit<Category, 'id' | 'activity' | 'available' | 'spent'>);
-      if (mutation.type === 'update') await updateCategory(mutation.data.id as string, mutation.data as Partial<Category>);
-      if (mutation.type === 'delete') await deleteCategory(mutation.data.id as string);
+    try {
+      if (mutation.entity === 'transaction') {
+        if (mutation.type === 'add') await addTransaction(mutation.data as unknown as Omit<Transaction, 'id'>);
+        if (mutation.type === 'update') await updateTransaction(mutation.data.id as string, mutation.data as Partial<Transaction>);
+      } else if (mutation.entity === 'category') {
+        if (mutation.type === 'add') await addCategory(mutation.data as unknown as Omit<Category, 'id' | 'activity' | 'available' | 'spent'>);
+        if (mutation.type === 'update') await updateCategory(mutation.data.id as string, mutation.data as Partial<Category>);
+        if (mutation.type === 'delete') await deleteCategory(mutation.data.id as string);
+      }
+      
+      // If success, remove from pending
+      setPendingMutations(prev => prev.filter(m => m.id !== mutationId));
+    } catch (error) {
+      console.error('Retry failed:', error);
+      addToast('Retry failed. Please check your connection.', 'error');
+    } finally {
+      // Clear loading state
+      setRetryingIds(prev => {
+        const next = new Set(prev);
+        next.delete(mutationId);
+        return next;
+      });
     }
   };
 
@@ -601,6 +637,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     deleteCategory,
     reconcileAccount,
     seedData,
-    retryMutation
+    retryMutation,
+    toasts,
+    retryingIds
   };
 }
