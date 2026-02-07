@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { useSubscriptionPool } from '@/hooks/useSubscriptionPool';
-import { MonthlyAllocation, Transaction } from '@/hooks/useFinanceData';
+import { MonthlyAllocation, Transaction, Category } from '@/hooks/useFinanceData';
 
 interface FinanceContextType {
   selectedMonth: string;
@@ -10,6 +10,8 @@ interface FinanceContextType {
   refreshTransactions: () => void;
   refreshKey: number;
   pooledData: Record<string, { allocations: MonthlyAllocation[], transactions: Transaction[] }>;
+  budgetCache: Record<string, Category[]>;
+  setBudgetCache: (month: string, categories: Category[]) => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -19,8 +21,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     new Date().toISOString().slice(0, 7)
   );
   const [refreshKey, setRefreshKey] = useState(0);
+  const [budgetCache, setBudgetCacheInternal] = useState<Record<string, Category[]>>({});
+  
+  // Track access order for LRU pruning
+  const accessOrder = useRef<string[]>([]);
 
   const pooledData = useSubscriptionPool(selectedMonth);
+
+  const setBudgetCache = useCallback((month: string, categories: Category[]) => {
+    setBudgetCacheInternal(prev => {
+      // If no change, skip update to prevent re-renders
+      if (prev[month] === categories) return prev;
+
+      const next = { ...prev, [month]: categories };
+      
+      // Update LRU access order
+      accessOrder.current = [month, ...accessOrder.current.filter(m => m !== month)];
+      
+      // Prune to 3 months
+      if (Object.keys(next).length > 3) {
+        const toRemove = accessOrder.current.pop();
+        if (toRemove && toRemove !== selectedMonth) {
+          delete next[toRemove];
+        }
+      }
+      
+      return next;
+    });
+  }, [selectedMonth]);
 
   const refreshTransactions = useCallback(() => {
     setRefreshKey(prev => prev + 1);
@@ -32,7 +60,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setSelectedMonth, 
       refreshTransactions, 
       refreshKey,
-      pooledData 
+      pooledData,
+      budgetCache,
+      setBudgetCache
     }}>
       {children}
     </FinanceContext.Provider>
