@@ -26,10 +26,14 @@ export function useSettings() {
       // 2. Terminate Firestore
       await terminate(db);
 
-      // 3. Clear persistence
-      await clearIndexedDbPersistence(db);
+      // 3. Clear persistence (might fail if other tabs are open)
+      try {
+        await clearIndexedDbPersistence(db);
+      } catch (e) {
+        console.warn('Persistence clear failed, but proceeding with reload:', e);
+      }
 
-      // 4. Reload page
+      // 4. Reload page to recover app state
       window.location.reload();
     } catch (error) {
       console.error('Force refresh failed:', error);
