@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { useFinance } from '@/context/FinanceContext';
 
 export interface PendingMutation {
   id: string;
@@ -33,7 +34,7 @@ export interface Category {
   budgeted: number;
   activity: number;
   available: number;
-  spent: number; // For backward compatibility if needed, but will map to activity
+  spent: number;
   color: string;
   hex: string;
   isRta?: boolean;
@@ -76,12 +77,27 @@ export interface Transaction {
   scanStatus?: 'pending' | 'scanning' | 'completed' | 'failed';
 }
 
-export function useFinanceData(selectedMonth: string = new Date().toISOString().slice(0, 7)) {
+export function useFinanceData(monthOverride?: string) {
   const { user } = useAuth();
+  const { selectedMonth: contextMonth } = useFinance();
+  const selectedMonth = monthOverride || contextMonth;
+
+  // Optimistic & UI State
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+  const [pendingMutations, setPendingMutations] = useState<PendingMutation[]>([]);
+  const isInitialized = useRef(false);
+
+  // Data State
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [categoriesMetadata, setCategoriesMetadata] = useState<CategoryMetadata[]>([]);
-  const [transactionsData, setTransactionsData] = useState<Transaction[]>([]);
-  const [allocationsData, setAllocationsData] = useState<MonthlyAllocation[]>([]);
+  const [metadata, setMetadata] = useState<CategoryMetadata[]>([]);
+  const [allocations, setAllocations] = useState<MonthlyAllocation[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  
+  // Computed/Optimistic State
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<Record<string, boolean>>({
     accounts: false,
@@ -89,9 +105,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     monthly: false,
     transactions: false
   });
-
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = crypto.randomUUID();
@@ -103,66 +116,13 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
   const hasPendingWrites = useMemo(() => Object.values(syncStatus).some(v => v), [syncStatus]);
 
-  // Optimistic Categories & Transactions
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    const qAccounts = query(collection(db, 'users', user.uid, 'accounts'));
-    const qCategories = query(collection(db, 'users', user.uid, 'categories'));
-    const qMonthly = query(collection(db, 'users', user.uid, 'monthly_allocations'));
-    const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
-
-    const unsubAccounts = onSnapshot(qAccounts, { includeMetadataChanges: true }, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account));
-      setAccounts(data);
-      setSyncStatus(prev => ({ ...prev, accounts: snapshot.metadata.hasPendingWrites }));
-    });
-
-    const unsubCategories = onSnapshot(qCategories, { includeMetadataChanges: true }, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CategoryMetadata));
-      setCategoriesMetadata(data);
-      setSyncStatus(prev => ({ ...prev, categories: snapshot.metadata.hasPendingWrites }));
-    });
-
-    const unsubMonthly = onSnapshot(qMonthly, { includeMetadataChanges: true }, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
-      setAllocationsData(data);
-      setSyncStatus(prev => ({ ...prev, monthly: snapshot.metadata.hasPendingWrites }));
-    });
-
-    const unsubTransactions = onSnapshot(qTransactions, { includeMetadataChanges: true }, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ 
-        id: d.id, 
-        ...d.data(),
-        isPending: d.metadata.hasPendingWrites
-      } as Transaction));
-      setTransactionsData(data);
-      setSyncStatus(prev => ({ ...prev, transactions: snapshot.metadata.hasPendingWrites }));
-      setLoading(false);
-    });
-
-    return () => {
-      unsubAccounts();
-      unsubCategories();
-      unsubMonthly();
-      unsubTransactions();
-    };
-  }, [user]);
-
-  useEffect(() => {
-    if (categoriesMetadata.length === 0) return;
+  // --- Calculation Logic ---
+  const calculateFinances = useCallback(() => {
+    if (metadata.length === 0) return;
 
     // 1. Group transactions by month and category
     const activityMap: Record<string, Record<string, number>> = {};
-    transactionsData.forEach(tx => {
+    allTransactions.forEach(tx => {
       const month = tx.date.slice(0, 7);
       if (!activityMap[month]) activityMap[month] = {};
       if (!activityMap[month][tx.category]) activityMap[month][tx.category] = 0;
@@ -171,7 +131,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
     // 2. Group allocations by month and category
     const budgetMap: Record<string, Record<string, number>> = {};
-    allocationsData.forEach(alloc => {
+    allocations.forEach(alloc => {
       if (!budgetMap[alloc.month]) budgetMap[alloc.month] = {};
       budgetMap[alloc.month][alloc.categoryId] = alloc.budgeted;
     });
@@ -190,7 +150,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       monthResults[m] = {};
       let totalBudgetedToCategories = 0;
       
-      categoriesMetadata.forEach(cat => {
+      metadata.forEach(cat => {
         if (cat.isRta || cat.isCcPayment) return;
         const budgeted = budgetMap[m]?.[cat.id] || 0;
         const activity = activityMap[m]?.[cat.name] || 0;
@@ -201,15 +161,15 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         totalBudgetedToCategories += budgeted;
       });
 
-      const ccTransactions = transactionsData.filter(tx => {
+      const ccTransactions = allTransactions.filter(tx => {
           const month = tx.date.slice(0, 7);
           const acc = accounts.find(a => a.id === tx.accountId);
           return month === m && acc?.type === 'Credit Card' && tx.amount < 0;
       });
 
       ccTransactions.forEach(tx => {
-          const catMeta = categoriesMetadata.find(c => c.name === tx.category);
-          const ccPaymentMeta = categoriesMetadata.find(c => c.isCcPayment && c.linkedAccountId === tx.accountId);
+          const catMeta = metadata.find(c => c.name === tx.category);
+          const ccPaymentMeta = metadata.find(c => c.isCcPayment && c.linkedAccountId === tx.accountId);
           
           if (catMeta && ccPaymentMeta && !catMeta.isRta) {
               const currentAvailable = monthResults[m][catMeta.id]?.available || 0;
@@ -225,7 +185,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           }
       });
 
-      categoriesMetadata.forEach(cat => {
+      metadata.forEach(cat => {
           if (cat.isRta) return;
           if (cat.isCcPayment && !monthResults[m][cat.id]) {
               const budgeted = budgetMap[m]?.[cat.id] || 0;
@@ -239,7 +199,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           }
       });
 
-      const rtaMetadata = categoriesMetadata.find(c => c.isRta);
+      const rtaMetadata = metadata.find(c => c.isRta);
       if (rtaMetadata) {
           const income = activityMap[m]?.[rtaMetadata.name] || 0;
           const prevRta = runningAvailable[rtaMetadata.id] || 0;
@@ -249,7 +209,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       }
     });
 
-    const merged = categoriesMetadata.map(m => {
+    const merged = metadata.map(m => {
       const stats = monthResults[selectedMonth]?.[m.id] || { budgeted: 0, activity: 0, available: 0 };
       return {
         ...m,
@@ -261,22 +221,89 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     });
 
     setCategories(merged);
-    setTransactions(transactionsData);
-  }, [categoriesMetadata, transactionsData, allocationsData, accounts, selectedMonth]);
+    setTransactions(allTransactions); // Keep them in sync for now, though filtered by view usually
+  }, [metadata, allocations, allTransactions, selectedMonth, accounts]);
+
+  useEffect(() => {
+    calculateFinances();
+  }, [calculateFinances]);
+
+  // --- Listeners ---
+
+  // 1. Global Entities (Accounts, Categories)
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const qAccounts = query(collection(db, 'users', user.uid, 'accounts'));
+    const qCategories = query(collection(db, 'users', user.uid, 'categories'));
+
+    const unsubAccounts = onSnapshot(qAccounts, { includeMetadataChanges: true }, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account));
+      setAccounts(data);
+      setSyncStatus(prev => ({ ...prev, accounts: snapshot.metadata.hasPendingWrites }));
+    });
+
+    const unsubCategories = onSnapshot(qCategories, { includeMetadataChanges: true }, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CategoryMetadata));
+      setMetadata(data);
+      setSyncStatus(prev => ({ ...prev, categories: snapshot.metadata.hasPendingWrites }));
+    });
+
+    return () => {
+      unsubAccounts();
+      unsubCategories();
+    };
+  }, [user]);
+
+  // 2. Transactional Data (Monthly Allocations, Transactions)
+  useEffect(() => {
+    if (!user) return;
+    
+    // We fetch ALL for now to support accurate running balances, 
+    // but in future could optimize windowing here.
+    const qMonthly = query(collection(db, 'users', user.uid, 'monthly_allocations'));
+    const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
+
+    const unsubMonthly = onSnapshot(qMonthly, { includeMetadataChanges: true }, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
+      setAllocations(data);
+      setSyncStatus(prev => ({ ...prev, monthly: snapshot.metadata.hasPendingWrites }));
+    });
+
+    const unsubTransactions = onSnapshot(qTransactions, { includeMetadataChanges: true }, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ 
+        id: d.id, 
+        ...d.data(),
+        isPending: d.metadata.hasPendingWrites
+      } as Transaction));
+      setAllTransactions(data);
+      setSyncStatus(prev => ({ ...prev, transactions: snapshot.metadata.hasPendingWrites }));
+      setLoading(false);
+    });
+
+    return () => {
+      unsubMonthly();
+      unsubTransactions();
+    };
+  }, [user]);
+
+  // --- Side Effects ---
 
   // Ensure Credit Card Payment categories exist
   useEffect(() => {
-    if (loading || categoriesMetadata.length === 0) return;
+    if (loading || metadata.length === 0) return;
     
     const ccAccounts = accounts.filter(a => a.type === 'Credit Card');
     if (ccAccounts.length === 0) return;
 
-    // Check if we need to create any categories
     const batch = writeBatch(db);
     let hasUpdates = false;
 
     ccAccounts.forEach(acc => {
-      const paymentCat = categoriesMetadata.find(c => c.isCcPayment && c.linkedAccountId === acc.id);
+      const paymentCat = metadata.find(c => c.isCcPayment && c.linkedAccountId === acc.id);
       if (!paymentCat) {
         hasUpdates = true;
         const newCatRef = doc(collection(db, 'users', user!.uid, 'categories'));
@@ -301,46 +328,35 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     if (hasUpdates) {
       batch.commit().catch(err => console.error('Failed to ensure CC categories', err));
     }
-  }, [accounts, categoriesMetadata, user, selectedMonth, loading]);
+  }, [accounts, metadata, user, selectedMonth, loading]);
 
-  const [pendingMutations, setPendingMutations] = useState<PendingMutation[]>([]);
-  const isInitialized = useRef(false);
-
-  // Load pending mutations from localStorage on init
+  // Load/Save Pending Mutations
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
     try {
       const saved = localStorage.getItem('zerosum_pending_mutations');
-      if (saved) {
-        setPendingMutations(JSON.parse(saved));
-      }
+      if (saved) setPendingMutations(JSON.parse(saved));
     } catch (error) {
-      console.error('Failed to load pending mutations from localStorage:', error);
+      console.error('Failed to load pending mutations:', error);
     } finally {
       isInitialized.current = true;
     }
   }, []);
 
-  // Sync pending mutations to localStorage
   useEffect(() => {
     if (!isInitialized.current || typeof window === 'undefined') return;
-    
     try {
       localStorage.setItem('zerosum_pending_mutations', JSON.stringify(pendingMutations));
     } catch (error) {
-      console.error('Failed to save pending mutations to localStorage:', error);
+      console.error('Failed to save pending mutations:', error);
     }
   }, [pendingMutations]);
 
+  // --- Mutations ---
+
   const addTransaction = async (txData: Omit<Transaction, 'id'>, id?: string, _isRetry?: boolean) => {
     if (!user) return;
-    
-    // Client-side ID generation for Firestore write
     const txRef = id ? doc(db, 'users', user.uid, 'transactions', id) : doc(collection(db, 'users', user.uid, 'transactions'));
-
-    // We rely on Firestore's native latency compensation (local cache)
-    // for the optimistic update of the 'transactionsData' via onSnapshot.
     
     try {
       const accRef = doc(db, 'users', user.uid, 'accounts', txData.accountId);
@@ -348,7 +364,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       batch.set(txRef, txData);
       batch.update(accRef, { balance: increment(txData.amount) });
 
-      // Handle Transfer Logic for CC Payments
       const ccPaymentCategory = categories.find(c => c.name === txData.category && c.isCcPayment);
       if (ccPaymentCategory?.linkedAccountId) {
           const linkedAccRef = doc(db, 'users', user.uid, 'accounts', ccPaymentCategory.linkedAccountId);
@@ -359,7 +374,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     } catch (error) {
       console.error('Failed to add transaction:', error);
       if (_isRetry) throw error;
-      // Even with latency compensation, we add to pending for retry if the write fails globally.
       setPendingMutations(prev => [...prev, {
         id: crypto.randomUUID(),
         type: 'add',
@@ -372,12 +386,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
   const updateTransaction = async (id: string, data: Partial<Transaction>, balanceDelta?: number, _isRetry?: boolean) => {
       if (!user) return;
-      
-      const original = transactionsData.find(t => t.id === id);
+      const original = allTransactions.find(t => t.id === id);
       if (!original) return;
 
-      // Optimistic Update
-      setTransactionsData(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+      // Optimistic
+      setAllTransactions(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
       if (balanceDelta && original.accountId) {
           setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance + balanceDelta } : a));
       }
@@ -396,7 +409,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       } catch (error) {
         console.error('Failed to update transaction:', error);
         // Rollback
-        setTransactionsData(prev => prev.map(t => t.id === id ? original : t));
+        setAllTransactions(prev => prev.map(t => t.id === id ? original : t));
         if (balanceDelta && original.accountId) {
             setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance - balanceDelta } : a));
         }
@@ -414,9 +427,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
   const updateCategory = async (id: string, data: Partial<Category>, _isRetry?: boolean) => {
       if (!user) return;
-      
-      const originalMeta = categoriesMetadata.find(c => c.id === id);
-      const originalAlloc = allocationsData.find(a => a.categoryId === id && a.month === selectedMonth);
+      const originalMeta = metadata.find(c => c.id === id);
+      const originalAlloc = allocations.find(a => a.categoryId === id && a.month === selectedMonth);
       if (!originalMeta) return;
 
       if (originalMeta.isRta && data.name) {
@@ -424,9 +436,9 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           return;
       }
 
-      // Optimistic Update
+      // Optimistic
       if (data.budgeted !== undefined) {
-        setAllocationsData(prev => {
+        setAllocations(prev => {
           const exists = prev.find(a => a.categoryId === id && a.month === selectedMonth);
           if (exists) {
             return prev.map(a => (a.categoryId === id && a.month === selectedMonth) ? { ...a, budgeted: data.budgeted! } : a);
@@ -435,13 +447,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         });
       }
       if (data.name || data.color || data.hex) {
-        setCategoriesMetadata(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+        setMetadata(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
       }
 
       try {
         const batch = writeBatch(db);
-        
-        // Update metadata if name/color/targets changed
         if (data.name || data.color || data.hex || data.targetType !== undefined || data.targetAmount !== undefined || data.targetDate !== undefined) {
             const metaRef = doc(db, 'users', user.uid, 'categories', id);
             const metaUpdate: Partial<CategoryMetadata> = {};
@@ -469,10 +479,10 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         console.error('Failed to update category:', error);
         // Rollback
         if (data.budgeted !== undefined) {
-          setAllocationsData(prev => originalAlloc ? prev.map(a => a.id === originalAlloc.id ? originalAlloc : a) : prev.filter(a => a.categoryId !== id || a.month !== selectedMonth));
+          setAllocations(prev => originalAlloc ? prev.map(a => a.id === originalAlloc.id ? originalAlloc : a) : prev.filter(a => a.categoryId !== id || a.month !== selectedMonth));
         }
         if (data.name || data.color || data.hex) {
-          setCategoriesMetadata(prev => prev.map(c => c.id === id ? originalMeta : c));
+          setMetadata(prev => prev.map(c => c.id === id ? originalMeta : c));
         }
         if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
@@ -507,9 +517,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         budgeted: data.budgeted || 0
       };
 
-      // Optimistic Update
-      setCategoriesMetadata(prev => [...prev, newMeta]);
-      setAllocationsData(prev => [...prev, newAlloc]);
+      setMetadata(prev => [...prev, newMeta]);
+      setAllocations(prev => [...prev, newAlloc]);
 
       try {
         const batch = writeBatch(db);
@@ -534,9 +543,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         await batch.commit();
       } catch (error) {
         console.error('Failed to add category:', error);
-        // Rollback
-        setCategoriesMetadata(prev => prev.filter(c => c.id !== catId));
-        setAllocationsData(prev => prev.filter(a => a.categoryId !== catId));
+        setMetadata(prev => prev.filter(c => c.id !== catId));
+        setAllocations(prev => prev.filter(a => a.categoryId !== catId));
         if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
@@ -551,8 +559,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
   const deleteCategory = async (id: string, _isRetry?: boolean) => {
       if (!user) return;
       
-      const originalMeta = categoriesMetadata.find(c => c.id === id);
-      const originalAllocs = allocationsData.filter(a => a.categoryId === id);
+      const originalMeta = metadata.find(c => c.id === id);
+      const originalAllocs = allocations.filter(a => a.categoryId === id);
       if (!originalMeta) return;
 
       if (originalMeta.isRta) {
@@ -560,23 +568,21 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           return;
       }
 
-      const hasTransactions = transactionsData.some(t => t.category === originalMeta.name);
+      const hasTransactions = allTransactions.some(t => t.category === originalMeta.name);
       if (hasTransactions) {
-          addToast('Cannot delete category with associated transactions. Please re-categorize transactions first.', 'error');
+          addToast('Cannot delete category with associated transactions.', 'error');
           return;
       }
 
-      // Optimistic Update
-      setCategoriesMetadata(prev => prev.filter(c => c.id !== id));
-      setAllocationsData(prev => prev.filter(a => a.categoryId !== id));
+      setMetadata(prev => prev.filter(c => c.id !== id));
+      setAllocations(prev => prev.filter(a => a.categoryId !== id));
 
       try {
         await deleteDoc(doc(db, 'users', user.uid, 'categories', id));
       } catch (error) {
         console.error('Failed to delete category:', error);
-        // Rollback
-        setCategoriesMetadata(prev => [...prev, originalMeta]);
-        setAllocationsData(prev => [...prev, ...originalAllocs]);
+        setMetadata(prev => [...prev, originalMeta]);
+        setAllocations(prev => [...prev, ...originalAllocs]);
         if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
@@ -592,7 +598,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     const mutation = pendingMutations.find(m => m.id === mutationId);
     if (!mutation || retryingIds.has(mutationId)) return;
 
-    // Set loading state
     setRetryingIds(prev => {
       const next = new Set(prev);
       next.add(mutationId);
@@ -621,14 +626,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           await deleteCategory(mutation.data.id as string, true);
         }
       }
-      
-      // If success, remove from pending
       setPendingMutations(prev => prev.filter(m => m.id !== mutationId));
     } catch (error) {
       console.error('Retry failed:', error);
       addToast('Retry failed. Please check your connection.', 'error');
     } finally {
-      // Clear loading state
       setRetryingIds(prev => {
         const next = new Set(prev);
         next.delete(mutationId);
