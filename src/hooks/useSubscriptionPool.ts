@@ -11,6 +11,8 @@ export interface PooledMonthData {
   allocations: MonthlyAllocation[];
   transactions: Transaction[];
   status: 'loading' | 'synced' | 'error';
+  allocReady?: boolean;
+  txReady?: boolean;
 }
 
 /**
@@ -48,18 +50,15 @@ export function useSubscriptionPool(baseMonth: string) {
             delete next[m];
             return next;
           });
-          console.log(`[SubscriptionPool] Detached listeners for ${m}`);
         }
       });
 
       // Attach new listeners for adjacent months
       adjacent.forEach(m => {
         if (!unsubs.current[m]) {
-          console.log(`[SubscriptionPool] Attaching listeners for ${m}`);
-          
           setPooledData(prev => ({
             ...prev,
-            [m]: { allocations: [], transactions: [], status: 'loading' }
+            [m]: { allocations: [], transactions: [], status: 'loading', allocReady: false, txReady: false }
           }));
 
           const qAlloc = query(
@@ -77,8 +76,7 @@ export function useSubscriptionPool(baseMonth: string) {
             orderBy('date', 'desc')
           );
 
-          const handleError = (error: unknown) => {
-            console.error(`[SubscriptionPool] Error prefetching ${m}:`, error);
+          const handleError = (_error: unknown) => {
             setPooledData(prev => ({
               ...prev,
               [m]: { ...prev[m], status: 'error' }
@@ -87,14 +85,19 @@ export function useSubscriptionPool(baseMonth: string) {
 
           const unsubAlloc = onSnapshot(qAlloc, { includeMetadataChanges: true }, (snap) => {
             const allocations = snap.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
-            setPooledData(prev => ({
-              ...prev,
-              [m]: { 
-                ...prev[m], 
-                allocations: allocations || [],
-                status: prev[m]?.status === 'loading' && snap.metadata.fromCache ? 'loading' : 'synced'
-              }
-            }));
+            setPooledData(prev => {
+              const monthData = prev[m] || { allocations: [], transactions: [], status: 'loading', allocReady: false, txReady: false };
+              const allocReady = !snap.metadata.fromCache || monthData.allocReady;
+              return {
+                ...prev,
+                [m]: { 
+                  ...monthData, 
+                  allocations: allocations || [],
+                  allocReady,
+                  status: (allocReady && monthData.txReady) ? 'synced' : 'loading'
+                }
+              };
+            });
           }, handleError);
 
           const unsubTx = onSnapshot(qTx, { includeMetadataChanges: true }, (snap) => {
@@ -103,14 +106,19 @@ export function useSubscriptionPool(baseMonth: string) {
               ...d.data(),
               isPending: d.metadata.hasPendingWrites
             } as Transaction));
-            setPooledData(prev => ({
-              ...prev,
-              [m]: { 
-                ...prev[m], 
-                transactions: transactions || [],
-                status: prev[m]?.status === 'loading' && snap.metadata.fromCache ? 'loading' : 'synced'
-              }
-            }));
+            setPooledData(prev => {
+              const monthData = prev[m] || { allocations: [], transactions: [], status: 'loading', allocReady: false, txReady: false };
+              const txReady = !snap.metadata.fromCache || monthData.txReady;
+              return {
+                ...prev,
+                [m]: { 
+                  ...monthData, 
+                  transactions: transactions || [],
+                  txReady,
+                  status: (monthData.allocReady && txReady) ? 'synced' : 'loading'
+                }
+              };
+            });
           }, handleError);
 
           unsubs.current[m] = [unsubAlloc, unsubTx];

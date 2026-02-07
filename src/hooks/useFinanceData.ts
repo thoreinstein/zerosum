@@ -99,8 +99,6 @@ export function useFinanceData(monthOverride?: string) {
   const [allocations, setAllocations] = useState<MonthlyAllocation[]>([]);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   
-  // Merge active data with pooled background data
-  const combinedAllocations = useMemo(() => {
   // Currently, `allocations` and `allTransactions` already represent the full
   // collections, so we don't merge in pooled background data here to avoid
   // redundant Firestore listeners and duplicate data.
