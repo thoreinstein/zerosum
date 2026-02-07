@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useFinanceData } from '@/hooks/useFinanceData';
 
 interface AuthContextType {
   user: User | null;
@@ -12,6 +13,19 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+
+const ColdStartManager = () => {
+  const { user } = useAuth();
+  const { checkAndSeedColdStart } = useFinanceData();
+
+  useEffect(() => {
+    if (user) {
+      checkAndSeedColdStart();
+    }
+  }, [user, checkAndSeedColdStart]);
+
+  return null;
+};
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -49,7 +63,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        children
+        <>
+          <ColdStartManager />
+          {children}
+        </>
       )}
     </AuthContext.Provider>
   );

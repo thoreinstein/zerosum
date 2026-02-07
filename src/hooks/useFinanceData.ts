@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   collection, query, onSnapshot, updateDoc, doc, deleteDoc,
   orderBy, writeBatch, increment, where, getDocs
@@ -366,50 +366,99 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       await batch.commit();
   };
 
+  const checkAndSeedColdStart = useCallback(async () => {
+    if (!user) return;
+    
+    // Idempotency check: only seed if no accounts exist
+    const q = query(collection(db, 'users', user.uid, 'accounts'));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) return;
+
+    const batch = writeBatch(db);
+
+    const accountsData = [
+      { name: 'Main Checking', type: 'Checking', balance: 0 },
+      { name: 'Savings', type: 'Savings', balance: 0 },
+    ];
+
+    for (const acc of accountsData) {
+      const ref = doc(collection(db, 'users', user.uid, 'accounts'));
+      batch.set(ref, acc);
+    }
+
+    const categoriesData = [
+      { name: 'Ready to Assign', budgeted: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
+      { name: 'Rent / Mortgage', budgeted: 0, color: 'bg-blue-500', hex: '#3b82f6' },
+      { name: 'Groceries', budgeted: 0, color: 'bg-emerald-500', hex: '#10b981' },
+      { name: 'Utilities', budgeted: 0, color: 'bg-yellow-500', hex: '#eab308' },
+      { name: 'Dining Out', budgeted: 0, color: 'bg-orange-500', hex: '#f97316' },
+    ];
+
+    for (const cat of categoriesData) {
+      const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
+      batch.set(metaRef, {
+        name: cat.name,
+        color: cat.color,
+        hex: cat.hex,
+        isRta: cat.isRta || false
+      });
+
+      const allocId = `${selectedMonth}_${metaRef.id}`;
+      const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
+      batch.set(allocRef, {
+        month: selectedMonth,
+        categoryId: metaRef.id,
+        budgeted: cat.budgeted
+      });
+    }
+
+    await batch.commit();
+  }, [user, selectedMonth]);
+
   const seedData = async () => {
-      if (!user) return;
-      const batch = writeBatch(db);
+    if (!user) return;
+    const batch = writeBatch(db);
 
-      const accountsData = [
-        { name: 'Main Checking', type: 'Checking', balance: 3200 },
-        { name: 'Savings', type: 'Savings', balance: 15000 },
-        { name: 'Credit Card', type: 'Credit Card', balance: -450 }
-      ];
+    const accountsData = [
+      { name: 'Main Checking', type: 'Checking', balance: 3200 },
+      { name: 'Savings', type: 'Savings', balance: 15000 },
+      { name: 'Credit Card', type: 'Credit Card', balance: -450 }
+    ];
 
-      for (const acc of accountsData) {
-          const ref = doc(collection(db, 'users', user.uid, 'accounts'));
-          batch.set(ref, acc);
-      }
+    for (const acc of accountsData) {
+        const ref = doc(collection(db, 'users', user.uid, 'accounts'));
+        batch.set(ref, acc);
+    }
 
-      const categoriesData = [
-        { name: 'Ready to Assign', budgeted: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
-        { name: 'Rent / Mortgage', budgeted: 1500, color: 'bg-blue-500', hex: '#3b82f6' },
-        { name: 'Electric', budgeted: 120, color: 'bg-yellow-500', hex: '#eab308' },
-        { name: 'Internet', budgeted: 80, color: 'bg-indigo-500', hex: '#6366f1' },
-        { name: 'Auto Insurance', budgeted: 100, color: 'bg-pink-500', hex: '#ec4899' },
-        { name: 'Dining Out', budgeted: 300, color: 'bg-orange-500', hex: '#f97316' },
-        { name: 'Emergency Fund', budgeted: 500, color: 'bg-emerald-500', hex: '#10b981' },
-      ];
+    const categoriesData = [
+      { name: 'Ready to Assign', budgeted: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
+      { name: 'Rent / Mortgage', budgeted: 1500, color: 'bg-blue-500', hex: '#3b82f6' },
+      { name: 'Electric', budgeted: 120, color: 'bg-yellow-500', hex: '#eab308' },
+      { name: 'Internet', budgeted: 80, color: 'bg-indigo-500', hex: '#6366f1' },
+      { name: 'Auto Insurance', budgeted: 100, color: 'bg-pink-500', hex: '#ec4899' },
+      { name: 'Dining Out', budgeted: 300, color: 'bg-orange-500', hex: '#f97316' },
+      { name: 'Emergency Fund', budgeted: 500, color: 'bg-emerald-500', hex: '#10b981' },
+    ];
 
-      for (const cat of categoriesData) {
-          const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
-          batch.set(metaRef, {
-              name: cat.name,
-              color: cat.color,
-              hex: cat.hex,
-              isRta: cat.isRta || false
-          });
+    for (const cat of categoriesData) {
+        const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
+        batch.set(metaRef, {
+            name: cat.name,
+            color: cat.color,
+            hex: cat.hex,
+            isRta: cat.isRta || false
+        });
 
-          const allocId = `${selectedMonth}_${metaRef.id}`;
-          const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
-          batch.set(allocRef, {
-              month: selectedMonth,
-              categoryId: metaRef.id,
-              budgeted: cat.budgeted
-          });
-      }
+        const allocId = `${selectedMonth}_${metaRef.id}`;
+        const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
+        batch.set(allocRef, {
+            month: selectedMonth,
+            categoryId: metaRef.id,
+            budgeted: cat.budgeted
+        });
+    }
 
-      await batch.commit();
+    await batch.commit();
   };
 
   return {
@@ -423,6 +472,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     addCategory,
     deleteCategory,
     reconcileAccount,
-    seedData
+    seedData,
+    checkAndSeedColdStart
   };
 }
