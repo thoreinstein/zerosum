@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Category, Account } from '@/hooks/useFinanceData';
 import { Plus, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import CategoryModal from '../modals/CategoryModal';
+import CategoryDetailsDrawer from '../modals/CategoryDetailsDrawer';
 
 interface BudgetViewProps {
   categories: Category[];
@@ -16,6 +17,7 @@ interface BudgetViewProps {
 export default function BudgetView({ categories, accounts, totalBudgeted, totalSpent, updateCategory, deleteCategory, addCategory }: BudgetViewProps) {
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [selectedForDetails, setSelectedForDetails] = useState<Category | null>(null);
 
   const ccPaymentCategories = useMemo(() => {
       return categories.filter(c => c.isCcPayment).map(cat => {
@@ -24,6 +26,30 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
           return { ...cat, account, isUnderfunded };
       });
   }, [categories, accounts]);
+
+  const categoryStats = useMemo(() => {
+      return categories.filter(c => !c.isCcPayment && !c.isRta).map(cat => {
+          let needed = 0;
+          let isUnderfunded = false;
+
+          if (cat.targetType === 'monthly' && cat.targetAmount) {
+              needed = Math.max(0, cat.targetAmount - cat.budgeted);
+              isUnderfunded = cat.budgeted < cat.targetAmount;
+          } else if (cat.targetType === 'balance' && cat.targetAmount) {
+              needed = Math.max(0, cat.targetAmount - cat.available);
+              isUnderfunded = cat.available < cat.targetAmount;
+          } else if (cat.targetType === 'balance_by_date' && cat.targetAmount && cat.targetDate) {
+              const targetDate = new Date(cat.targetDate);
+              const now = new Date();
+              const monthsLeft = Math.max(1, (targetDate.getFullYear() - now.getFullYear()) * 12 + (targetDate.getMonth() - now.getMonth()) + 1);
+              const totalNeeded = Math.max(0, cat.targetAmount - cat.available);
+              needed = totalNeeded / monthsLeft;
+              isUnderfunded = cat.budgeted < needed;
+          }
+
+          return { ...cat, needed, isUnderfunded };
+      });
+  }, [categories]);
 
   const handleEdit = (cat: Category) => {
     setEditingCategory(cat);
@@ -85,7 +111,7 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.hex }}></div>
-                      <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{cat.name}</span>
+                      <span className="font-semibold text-sm text-slate-700 dark:text-slate-200 cursor-pointer hover:underline" onClick={() => setSelectedForDetails(cat)}>{cat.name}</span>
                       {cat.isUnderfunded && (
                           <div className="group/tip relative flex items-center">
                               <AlertCircle size={14} className="text-amber-500" />
@@ -147,16 +173,23 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
             </>
           )}
 
-          {categories.filter(c => !c.isCcPayment && !c.isRta).map(cat => (
-            <div key={cat.id} className="p-4 flex flex-col gap-3 group">
+          {categoryStats.map(cat => (
+            <div key={cat.id} className={`p-4 flex flex-col gap-3 group ${cat.isUnderfunded ? 'bg-amber-50/20 dark:bg-amber-900/5' : ''}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.hex }}></div>
-                  <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{cat.name}</span>
+                  <div className="flex flex-col">
+                      <span className="font-semibold text-sm text-slate-700 dark:text-slate-200 cursor-pointer hover:underline" onClick={() => setSelectedForDetails(cat)}>{cat.name}</span>
+                      {cat.needed > 0 && (
+                          <span className={`text-[9px] font-bold uppercase tracking-tight ${cat.isUnderfunded ? 'text-amber-600' : 'text-slate-400'}`}>
+                              Needed: ${cat.needed.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </span>
+                      )}
+                  </div>
                   {!cat.isRta && (
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 ml-2">
-                      <button onClick={() => handleEdit(cat)} className="text-slate-400 hover:text-blue-500"><Edit2 size={12} /></button>
-                      <button onClick={() => handleDelete(cat.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleEdit(cat); }} className="text-slate-400 hover:text-blue-500"><Edit2 size={12} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(cat.id); }} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
                     </div>
                   )}
                 </div>
@@ -177,14 +210,14 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                     <span className={`text-[11px] font-bold text-right ${cat.activity < 0 ? 'text-slate-400' : 'text-emerald-500'}`}>
                         {cat.activity !== 0 ? (cat.activity > 0 ? `+${cat.activity.toLocaleString()}` : `-$${Math.abs(cat.activity).toLocaleString()}`) : '$0'}
                     </span>
-                    <span className={`text-xs font-bold px-2 py-1 rounded-lg text-right ${cat.available > 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600' : cat.available < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-lg text-right ${cat.available > 0 ? (cat.isUnderfunded ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600') : (cat.available < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400')}`}>
                         ${cat.available.toLocaleString()}
                     </span>
                 </div>
 
                 {/* Mobile View Status Pill */}
                 <div className="md:hidden">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-lg ${cat.available > 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600' : cat.available < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-lg ${cat.available > 0 ? (cat.isUnderfunded ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600') : (cat.available < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400')}`}>
                         ${cat.available.toLocaleString()}
                     </span>
                 </div>
@@ -227,6 +260,15 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
             setShowModal(false);
           }}
         />
+      )}
+
+      {selectedForDetails && (
+          <CategoryDetailsDrawer
+            isOpen={!!selectedForDetails}
+            onClose={() => setSelectedForDetails(null)}
+            category={selectedForDetails}
+            onSave={updateCategory}
+          />
       )}
     </div>
   );
