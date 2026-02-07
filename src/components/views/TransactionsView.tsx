@@ -1,7 +1,8 @@
 import { Transaction } from '@/hooks/useFinanceData';
-import { usePaginatedTransactions } from '@/hooks/usePaginatedTransactions';
+import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginatedTransactions';
+import TransactionFilterBar from './TransactionFilterBar';
 import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface TransactionsViewProps {
   selectedAccountId: string | null;
@@ -11,7 +12,14 @@ interface TransactionsViewProps {
 }
 
 export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
-  const { transactions, loading, loadingMore, hasMore, fetchNextPage } = usePaginatedTransactions(selectedAccountId);
+  const [filters, setFilters] = useState<TransactionFilters>({ accountId: selectedAccountId, status: 'all' });
+
+  // Sync accountId filter with prop
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, accountId: selectedAccountId }));
+  }, [selectedAccountId]);
+
+  const { transactions, loading, loadingMore, hasMore, fetchNextPage } = usePaginatedTransactions(filters);
   const observerTarget = useRef(null);
 
   useEffect(() => {
@@ -41,6 +49,8 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
 
   return (
     <div className="space-y-4 pb-10">
+      <TransactionFilterBar filters={filters} setFilters={setFilters} />
+
       {selectedAccountId && (
         <div className="flex gap-2 mb-4">
           <button onClick={onReconcile} className="flex-1 bg-slate-900 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors cursor-pointer">

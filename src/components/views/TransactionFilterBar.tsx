@@ -1,0 +1,79 @@
+'use client';
+
+import { TransactionFilters } from '@/hooks/usePaginatedTransactions';
+import { Filter, Calendar, X } from 'lucide-react';
+
+interface TransactionFilterBarProps {
+  filters: TransactionFilters;
+  setFilters: (filters: TransactionFilters) => void;
+}
+
+export default function TransactionFilterBar({ filters, setFilters }: TransactionFilterBarProps) {
+  const handleStatusChange = (status: TransactionFilters['status']) => {
+    setFilters({ ...filters, status });
+  };
+
+  const clearFilters = () => {
+    setFilters({ accountId: filters.accountId });
+  };
+
+  const hasActiveFilters = !!(filters.status && filters.status !== 'all') || !!filters.startDate || !!filters.endDate;
+
+  return (
+    <div className="flex flex-col gap-3 mb-6 p-4 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-slate-500">
+          <Filter size={16} />
+          <span className="text-xs font-bold uppercase tracking-wider">Filters</span>
+        </div>
+        {hasActiveFilters && (
+          <button 
+            onClick={clearFilters}
+            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg transition-colors"
+          >
+            <X size={12} /> Clear All
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(['all', 'cleared', 'uncleared', 'reconciled'] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => handleStatusChange(s)}
+            className={`
+              px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-tight transition-all
+              ${(filters.status || 'all') === s 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 scale-105' 
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border border-slate-100 dark:border-slate-700'}
+            `}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="flex-1 relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+          <input 
+            type="date" 
+            value={filters.startDate || ''}
+            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+          />
+        </div>
+        <span className="text-slate-300 text-xs">to</span>
+        <div className="flex-1 relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+          <input 
+            type="date" 
+            value={filters.endDate || ''}
+            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
