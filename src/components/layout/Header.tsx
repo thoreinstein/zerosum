@@ -1,6 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
 import { LogOut, ChevronLeft, ChevronRight, CloudOff, CloudSync } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   title: string;
