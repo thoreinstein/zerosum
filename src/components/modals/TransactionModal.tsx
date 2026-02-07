@@ -11,7 +11,7 @@ interface TransactionModalProps {
   onClose: () => void;
   accounts: Account[];
   categories: Category[];
-  onAddTransaction: (data: Omit<Transaction, 'id'>) => Promise<void>;
+  onAddTransaction: (data: Omit<Transaction, 'id'>, id?: string) => Promise<void>;
   defaultAccountId?: string;
   storeImage?: (txId: string, base64Image: string) => Promise<void>;
 }
@@ -80,16 +80,15 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
 
         if (storeImage) {
           await storeImage(txId, base64Data);
-                    await onAddTransaction({
-                      date: formData.date,
-                      payee: 'Queued Receipt',
-                      category: 'Ready to Assign',
-                      amount: 0,
-                      status: 'uncleared',
-                      accountId: formData.accountId,
-                      scanStatus: 'pending'
-                    });
-           // Use any temporarily to avoid ID confusion in onAddTransaction wrapper
+          await onAddTransaction({
+            date: formData.date,
+            payee: 'Queued Receipt',
+            category: 'Ready to Assign',
+            amount: 0,
+            status: 'uncleared',
+            accountId: formData.accountId,
+            scanStatus: 'pending'
+          }, txId);
           onClose();
         }
       } catch (error) {
