@@ -94,6 +94,8 @@ export function useFinanceData(monthOverride?: string) {
   const [pendingMutations, setPendingMutations] = useState<PendingMutation[]>([]);
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const isInitialized = useRef(false);
+  const errorBuffer = useRef<string[]>([]);
+  const errorTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -168,6 +170,26 @@ export function useFinanceData(monthOverride?: string) {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
   }, []);
+
+  const bufferError = useCallback((message: string) => {
+    errorBuffer.current.push(message);
+    
+    if (errorTimer.current) {
+      clearTimeout(errorTimer.current);
+    }
+
+    errorTimer.current = setTimeout(() => {
+      const errors = errorBuffer.current;
+      errorBuffer.current = [];
+      errorTimer.current = null;
+
+      if (errors.length === 1) {
+        addToast(errors[0], 'error');
+      } else if (errors.length > 1) {
+        addToast(`${errors.length} operations failed. Please review pending updates.`, 'error');
+      }
+    }, 2000);
+  }, [addToast]);
 
   const hasPendingWrites = useMemo(() => Object.values(syncStatus).some(v => v), [syncStatus]);
   const isSyncing = hasPendingWrites || isSyncingGlobal;
@@ -441,7 +463,10 @@ export function useFinanceData(monthOverride?: string) {
       await batch.commit();
     } catch (error) {
       console.error('Failed to add transaction:', error);
-      if (_isRetry) throw error;
+      if (_isRetry) {
+        bufferError('Failed to retry adding transaction.');
+        throw error;
+      }
       setPendingMutations(prev => [...prev, {
         id: crypto.randomUUID(),
         type: 'add',
@@ -449,6 +474,7 @@ export function useFinanceData(monthOverride?: string) {
         data: { ...txData, id: txRef.id },
         timestamp: Date.now()
       }]);
+      bufferError('Transaction failed to save. Added to pending updates.');
     }
   };
 
@@ -482,7 +508,10 @@ export function useFinanceData(monthOverride?: string) {
             setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance - balanceDelta } : a));
         }
         
-        if (_isRetry) throw error;
+        if (_isRetry) {
+          bufferError('Failed to retry updating transaction.');
+          throw error;
+        }
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'update',
@@ -490,6 +519,7 @@ export function useFinanceData(monthOverride?: string) {
           data: { id, ...data, balanceDelta },
           timestamp: Date.now()
         }]);
+        bufferError('Update failed. Added to pending updates.');
       }
   };
 
@@ -552,7 +582,10 @@ export function useFinanceData(monthOverride?: string) {
         if (data.name || data.color || data.hex) {
           setMetadata(prev => prev.map(c => c.id === id ? originalMeta : c));
         }
-        if (_isRetry) throw error;
+        if (_isRetry) {
+          bufferError('Failed to retry updating category.');
+          throw error;
+        }
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'update',
@@ -560,6 +593,7 @@ export function useFinanceData(monthOverride?: string) {
           data: { id, ...data },
           timestamp: Date.now()
         }]);
+        bufferError('Category update failed. Added to pending updates.');
       }
   };
 
@@ -613,7 +647,10 @@ export function useFinanceData(monthOverride?: string) {
         console.error('Failed to add category:', error);
         setMetadata(prev => prev.filter(c => c.id !== catId));
         setAllocations(prev => prev.filter(a => a.categoryId !== catId));
-        if (_isRetry) throw error;
+        if (_isRetry) {
+          bufferError('Failed to retry adding category.');
+          throw error;
+        }
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'add',
@@ -621,6 +658,7 @@ export function useFinanceData(monthOverride?: string) {
           data,
           timestamp: Date.now()
         }]);
+        bufferError('Failed to add category. Added to pending updates.');
       }
   };
 
@@ -651,7 +689,10 @@ export function useFinanceData(monthOverride?: string) {
         console.error('Failed to delete category:', error);
         setMetadata(prev => [...prev, originalMeta]);
         setAllocations(prev => [...prev, ...originalAllocs]);
-        if (_isRetry) throw error;
+        if (_isRetry) {
+          bufferError('Failed to retry deleting category.');
+          throw error;
+        }
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'delete',
@@ -659,6 +700,7 @@ export function useFinanceData(monthOverride?: string) {
           data: { id },
           timestamp: Date.now()
         }]);
+        bufferError('Failed to delete category. Added to pending updates.');
       }
   };
 
@@ -697,7 +739,7 @@ export function useFinanceData(monthOverride?: string) {
       setPendingMutations(prev => prev.filter(m => m.id !== mutationId));
     } catch (error) {
       console.error('Retry failed:', error);
-      addToast('Retry failed. Please check your connection.', 'error');
+      bufferError('Retry failed. Please check your connection.');
     } finally {
       setRetryingIds(prev => {
         const next = new Set(prev);
