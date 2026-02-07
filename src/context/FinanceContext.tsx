@@ -1,15 +1,15 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
-import { useSubscriptionPool } from '@/hooks/useSubscriptionPool';
-import { MonthlyAllocation, Transaction, Category } from '@/hooks/useFinanceData';
+import { useSubscriptionPool, PooledMonthData } from '@/hooks/useSubscriptionPool';
+import { Category } from '@/hooks/useFinanceData';
 
 interface FinanceContextType {
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
   refreshTransactions: () => void;
   refreshKey: number;
-  pooledData: Record<string, { allocations: MonthlyAllocation[], transactions: Transaction[] }>;
+  pooledData: Record<string, PooledMonthData>;
   budgetCache: Record<string, Category[]>;
   setBudgetCache: (month: string, categories: Category[]) => void;
 }
