@@ -63,3 +63,26 @@ npm run firebase:emulators
   - `users/{uid}/accounts/{accId}`
   - `users/{uid}/categories/{catId}`
   - `users/{uid}/transactions/{txId}`
+
+## Architectural Truths & Patterns
+
+### 1. Optimistic Mutation Pattern
+To provide instant feedback, updates follow a specific lifecycle:
+1. **Immediate State Update**: Update local React state before the server call.
+2. **Client-Side ID Generation**: Use Firestore's `doc(collection(db, 'path')).id` to generate IDs on the client.
+3. **Async Server Attempt**: Perform the Firestore write within a `try/catch` block.
+4. **Rollback on Failure**: Revert local state if the server call fails.
+5. **Persistent Retry Store**: Store failed mutation data in `localStorage` and provide a "Retry" UI.
+
+### 2. Dependency Management with `useRef`
+When implementing background workers (like the AI Scan Queue), use a `useRef` to hold the latest state (e.g., `transactions`). This breaks infinite re-render loops caused by hooks depending on state they also update.
+
+### 3. Modern Firestore Persistence
+Always use `initializeFirestore` with `persistentLocalCache` and `persistentMultipleTabManager()` for multi-tab support. Avoid the deprecated `enableIndexedDbPersistence`.
+
+### 4. Large Asset Caching (IndexedDB)
+Use **IndexedDB** for storing large binary or base64 assets (like receipt images) while offline to avoid `localStorage` 5MB quota limits.
+
+### 5. Known Traps
+- **Infinite Effect Loops**: Never include a state variable in a dependency array if the effect's callback updates that same state. Use a `ref` overlay instead.
+- **Multi-Tab Persistence**: `failed-precondition` errors occur if multiple tabs attempt to enable persistence simultaneously. Always wrap initialization in a `catch` block.
