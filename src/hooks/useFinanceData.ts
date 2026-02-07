@@ -66,6 +66,7 @@ export interface Transaction {
   amount: number;
   status: 'cleared' | 'reconciled' | 'uncleared';
   accountId: string;
+  isPending?: boolean;
 }
 
 export function useFinanceData(selectedMonth: string = new Date().toISOString().slice(0, 7)) {
@@ -113,7 +114,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     });
 
     const unsubTransactions = onSnapshot(qTransactions, { includeMetadataChanges: true }, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      const data = snapshot.docs.map(d => ({ 
+        id: d.id, 
+        ...d.data(),
+        isPending: d.metadata.hasPendingWrites
+      } as Transaction));
       setTransactionsData(data);
       setHasPendingWrites(snapshot.metadata.hasPendingWrites);
       setLoading(false);

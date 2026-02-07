@@ -13,7 +13,7 @@ import TransactionsView from '@/components/views/TransactionsView';
 import ReportsView from '@/components/views/ReportsView';
 import TransactionModal from '@/components/modals/TransactionModal';
 import ReconcileModal from '@/components/modals/ReconcileModal';
-import { Plus } from 'lucide-react';
+import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -21,7 +21,8 @@ export default function Home() {
   
   const {
     accounts, categories, transactions, loading: dataLoading,
-    addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData
+    addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
+    hasPendingWrites, pendingMutations, retryMutation
   } = useFinanceData(selectedMonth);
 
   const [activeTab, setActiveTab] = useState('budget');
@@ -111,6 +112,7 @@ export default function Home() {
           rtaBalance={rtaBalance}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
+          hasPendingWrites={hasPendingWrites}
         />
 
         {activeTab === 'budget' && (
@@ -182,6 +184,36 @@ export default function Home() {
           onFinish={handleReconcileFinish}
           account={activeAccount}
         />
+      )}
+
+      {/* Retry Notifications */}
+      {pendingMutations.length > 0 && (
+        <div className="fixed bottom-28 left-6 right-6 md:bottom-10 md:left-auto md:right-10 flex flex-col gap-2 z-50 pointer-events-none">
+          {pendingMutations.slice(-3).map((mutation) => (
+            <div 
+              key={mutation.id} 
+              className="bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900/30 shadow-xl rounded-xl p-4 flex items-center gap-4 animate-in slide-in-from-right-5 pointer-events-auto"
+            >
+              <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg text-red-600">
+                <AlertCircle size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Update Failed</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {mutation.type === 'add' ? 'Could not add ' : mutation.type === 'update' ? 'Could not update ' : 'Could not delete '}
+                  {mutation.entity}
+                </p>
+              </div>
+              <button 
+                onClick={() => retryMutation(mutation.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                <RefreshCw size={14} />
+                Retry
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
