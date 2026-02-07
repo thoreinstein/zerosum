@@ -45,7 +45,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl p-4 space-y-4">
               <p className="text-xs text-red-800 dark:text-red-400 font-medium leading-relaxed">
                 Force Refresh will clear all local Firestore data and re-initialize the application. 
-                Any unsaved local changes that haven't reached the server yet may be lost.
+                Any unsaved local changes that haven&apos;t reached the server yet may be lost.
               </p>
 
               {!confirmForceRefresh ? (
