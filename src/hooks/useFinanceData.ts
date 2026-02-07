@@ -237,6 +237,7 @@ export function useFinanceData(monthOverride?: string) {
       return;
     }
 
+    setLoading(true);
     const qAccounts = query(collection(db, 'users', user.uid, 'accounts'));
     const qCategories = query(collection(db, 'users', user.uid, 'categories'));
 
