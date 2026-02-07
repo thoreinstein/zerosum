@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   collection, query, onSnapshot, doc, deleteDoc,
-  orderBy, writeBatch, increment, where, getDocs
+  orderBy, writeBatch, increment, where, getDocs,
+  onSnapshotsInSync
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -91,7 +92,21 @@ export function useFinanceData(monthOverride?: string) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
   const [pendingMutations, setPendingMutations] = useState<PendingMutation[]>([]);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const isInitialized = useRef(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Data State
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -138,6 +153,13 @@ export function useFinanceData(monthOverride?: string) {
     monthly: false,
     transactions: false
   });
+  const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
+
+  useEffect(() => {
+    return onSnapshotsInSync(db, () => {
+      setIsSyncingGlobal(false);
+    });
+  }, []);
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = crypto.randomUUID();
@@ -148,6 +170,7 @@ export function useFinanceData(monthOverride?: string) {
   }, []);
 
   const hasPendingWrites = useMemo(() => Object.values(syncStatus).some(v => v), [syncStatus]);
+  const isSyncing = hasPendingWrites || isSyncingGlobal;
 
   // --- Calculation Logic ---
   const calculateFinances = useCallback(() => {
@@ -284,12 +307,14 @@ export function useFinanceData(monthOverride?: string) {
     const qCategories = query(collection(db, 'users', user.uid, 'categories'));
 
     const unsubAccounts = onSnapshot(qAccounts, { includeMetadataChanges: true }, (snapshot) => {
+      setIsSyncingGlobal(true);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account));
       setAccounts(data);
       setSyncStatus(prev => ({ ...prev, accounts: snapshot.metadata.hasPendingWrites }));
     });
 
     const unsubCategories = onSnapshot(qCategories, { includeMetadataChanges: true }, (snapshot) => {
+      setIsSyncingGlobal(true);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CategoryMetadata));
       setMetadata(data);
       setSyncStatus(prev => ({ ...prev, categories: snapshot.metadata.hasPendingWrites }));
@@ -310,12 +335,14 @@ export function useFinanceData(monthOverride?: string) {
     const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
 
     const unsubMonthly = onSnapshot(qMonthly, { includeMetadataChanges: true }, (snapshot) => {
+      setIsSyncingGlobal(true);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
       setAllocations(data);
       setSyncStatus(prev => ({ ...prev, monthly: snapshot.metadata.hasPendingWrites }));
     });
 
     const unsubTransactions = onSnapshot(qTransactions, { includeMetadataChanges: true }, (snapshot) => {
+      setIsSyncingGlobal(true);
       const data = snapshot.docs.map(d => ({ 
         id: d.id, 
         ...d.data(),
@@ -747,6 +774,8 @@ export function useFinanceData(monthOverride?: string) {
     transactions,
     loading,
     hasPendingWrites,
+    isSyncing,
+    isOnline,
     pendingMutations,
     addTransaction,
     updateTransaction,
