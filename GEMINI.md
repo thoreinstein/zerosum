@@ -16,10 +16,10 @@ This document provides essential context for Gemini CLI interactions within the 
 ## Architecture & Structure
 
 ### Data Fetching strategy
-- **Hybrid Fetching**: To maintain performance as data scales, the app uses a hybrid approach:
-  - **Windowed**: High-volume data (Transactions, Allocations) is strictly windowed by the active month.
-  - **Global (Filtered)**: Critical state items (Uncleared transactions) are fetched globally with a reasonable limit (e.g., 100) to ensure they are always accounted for in budget calculations.
-- **FinanceContext**: Centralizes `selectedMonth` and `refreshTransactions` logic to eliminate prop-drilling.
+- **Current Fetching Model**: `useFinanceData` subscribes to all transactions (ordered by `date` descending) and all monthly allocations, then derives month-scoped views in memory.
+  - **Month-Scoped Views**: High-volume data (Transactions, Allocations) is filtered by the active month in application logic and UI components rather than via Firestore query constraints.
+  - **Global (Limited)**: Critical state items (e.g., uncleared transactions) are fetched or derived globally with reasonable limits (e.g., 100) so they are always accounted for in budget calculations.
+- **FinanceContext**: Centralizes `selectedMonth` and `refreshTransactions` logic to eliminate prop-drilling and drive the month-based filtering of subscribed data.
 
 ### Key Components
 - `src/hooks/useFinanceData.ts`: Core data synchronization and recursive budget calculation.
