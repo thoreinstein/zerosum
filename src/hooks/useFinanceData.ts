@@ -324,7 +324,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         id: crypto.randomUUID(),
         type: 'add',
         entity: 'transaction',
-        data: txData,
+        data: { ...txData, id: txRef.id },
         timestamp: Date.now()
       }]);
     }
