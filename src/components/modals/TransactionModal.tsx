@@ -72,9 +72,12 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
 
   const processReceipt = async (base64Data: string) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (!user) {
+        alert('You must be logged in to queue receipts for offline scanning.');
+        return;
+      }
       setIsQueuing(true);
       try {
-        if (!user) return;
         const txRef = doc(collection(db, 'users', user.uid, 'transactions'));
         const txId = txRef.id;
 
