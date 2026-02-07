@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useFinance } from '@/context/FinanceContext';
 import { useFinanceData } from '@/hooks/useFinanceData';
 import LoginView from '@/components/views/LoginView';
 import Sidebar from '@/components/layout/Sidebar';
@@ -18,8 +19,10 @@ import { useAIQueue } from '@/hooks/useAIQueue';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const { selectedMonth, setSelectedMonth } = useFinance();
   
+  const {
+    accounts, categories, transactions, loading: dataLoading,
   const {
     accounts, categories, transactions, loading: dataLoading,
     addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
