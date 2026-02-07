@@ -82,6 +82,9 @@ export default function Header({
         <div className="flex items-center gap-4">
           {/* Sync Status */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" aria-live="polite">
+            <span className="sr-only">
+              {!isOnline ? "Application is offline" : isSyncing ? "Syncing changes with server" : "All changes synced"}
+            </span>
             {!isOnline ? (
               <>
                 <CloudOff size={14} className="text-amber-500" />
