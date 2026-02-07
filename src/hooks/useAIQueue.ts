@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { scanReceipt } from '@/app/actions/scanReceipt';
 import { Transaction } from '@/hooks/useFinanceData';
 import { writeBatch, doc, increment } from 'firebase/firestore';
@@ -16,6 +16,12 @@ export function useAIQueue(
   categoryNames: string[]
 ) {
   const { user } = useAuth();
+  const transactionsRef = useRef<Transaction[]>(transactions);
+
+  // Sync ref with latest transactions
+  useEffect(() => {
+    transactionsRef.current = transactions;
+  }, [transactions]);
   
   const initDB = useCallback((): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
@@ -80,7 +86,7 @@ export function useAIQueue(
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (!user) return;
 
-    const pending = transactions.filter(t => t.scanStatus === 'pending');
+    const pending = transactionsRef.current.filter(t => t.scanStatus === 'pending');
     for (const tx of pending) {
       try {
         await updateTransaction(tx.id, { scanStatus: 'scanning' });
@@ -123,7 +129,7 @@ export function useAIQueue(
         await updateTransaction(tx.id, { scanStatus: 'failed' });
       }
     }
-  }, [transactions, updateTransaction, getImage, deleteImage, categoryNames, user]);
+  }, [updateTransaction, getImage, deleteImage, categoryNames, user]);
 
   useEffect(() => {
     const interval = setInterval(processQueue, 30000); // Check every 30s
