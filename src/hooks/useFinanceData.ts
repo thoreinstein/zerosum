@@ -155,7 +155,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       unsubMonthly();
       unsubTransactions();
     };
-  }, [user, selectedMonth]);
+  }, [user]);
 
   useEffect(() => {
     if (categoriesMetadata.length === 0) return;
