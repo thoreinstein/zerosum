@@ -104,7 +104,7 @@ export default function Header({
               </>
             ) : (
               <>
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Synced</span>
               </>
             )}
