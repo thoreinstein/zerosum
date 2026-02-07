@@ -5,7 +5,7 @@ interface CategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   category: Category | null;
-  onSave: (data: Omit<Category, 'id'>) => void;
+  onSave: (data: Omit<Category, 'id' | 'activity' | 'available'>) => void;
 }
 
 export default function CategoryModal({ isOpen, onClose, category, onSave }: CategoryModalProps) {
@@ -35,7 +35,8 @@ export default function CategoryModal({ isOpen, onClose, category, onSave }: Cat
       hex: formData.hex,
       color: formData.color,
       budgeted: category ? category.budgeted : 0,
-      spent: category ? category.spent : 0
+      spent: category ? category.spent : 0,
+      isRta: category ? category.isRta : false
     });
   };
 

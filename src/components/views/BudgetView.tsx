@@ -9,7 +9,7 @@ interface BudgetViewProps {
   totalSpent: number;
   updateCategory: (id: string, data: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-  addCategory: (data: Omit<Category, 'id'>) => void;
+  addCategory: (data: Omit<Category, 'id' | 'activity' | 'available'>) => void;
 }
 
 export default function BudgetView({ categories, totalBudgeted, totalSpent, updateCategory, deleteCategory, addCategory }: BudgetViewProps) {
@@ -55,6 +55,15 @@ export default function BudgetView({ categories, totalBudgeted, totalSpent, upda
             <Plus size={14} /> Add New
           </button>
         </div>
+        
+        {/* Table Headers */}
+        <div className="px-4 py-2 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800 hidden md:grid grid-cols-[1fr,100px,100px,100px] gap-4 items-center">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Category</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right">Budgeted</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right">Activity</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right">Available</span>
+        </div>
+
         <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
           {categories.map(cat => (
             <div key={cat.id} className="p-4 flex flex-col gap-3 group">
@@ -69,27 +78,56 @@ export default function BudgetView({ categories, totalBudgeted, totalSpent, upda
                     </div>
                   )}
                 </div>
-                <span className="text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 px-2 py-1 rounded-lg">
-                  ${(cat.budgeted - cat.spent).toLocaleString()}
-                </span>
+                
+                {/* Desktop View Row */}
+                <div className="hidden md:grid grid-cols-[100px,100px,100px] gap-4 items-center">
+                    {!cat.isRta ? (
+                        <input
+                            type="number"
+                            value={cat.budgeted}
+                            onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                updateCategory(cat.id, { budgeted: val });
+                            }}
+                            className="w-full text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
+                        />
+                    ) : <div />}
+                    <span className={`text-[11px] font-bold text-right ${cat.activity < 0 ? 'text-slate-400' : 'text-emerald-500'}`}>
+                        {cat.activity !== 0 ? (cat.activity > 0 ? `+${cat.activity.toLocaleString()}` : `-$${Math.abs(cat.activity).toLocaleString()}`) : '$0'}
+                    </span>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-lg text-right ${cat.available > 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600' : cat.available < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                        ${cat.available.toLocaleString()}
+                    </span>
+                </div>
+
+                {/* Mobile View Status Pill */}
+                <div className="md:hidden">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-lg ${cat.available > 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600' : cat.available < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                        ${cat.available.toLocaleString()}
+                    </span>
+                </div>
               </div>
+
+              {/* Progress Bar & Mobile Input */}
               <div className="flex items-center gap-4">
                 <div className="flex-1 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full opacity-60 transition-all duration-500" style={{ backgroundColor: cat.hex, width: `${Math.min((cat.spent / (cat.budgeted || 1)) * 100, 100)}%` }}></div>
+                  <div className="h-full opacity-60 transition-all duration-500" style={{ backgroundColor: cat.hex, width: `${cat.budgeted > 0 ? Math.min((Math.abs(cat.activity) / cat.budgeted) * 100, 100) : 0}%` }}></div>
                 </div>
-                {!cat.isRta ? (
-                  <input
-                    type="number"
-                    value={cat.budgeted}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
-                      updateCategory(cat.id, { budgeted: val });
-                    }}
-                    className="w-16 text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
-                  />
-                ) : (
-                  <div className="w-16 h-4" />
-                )}
+                <div className="md:hidden">
+                    {!cat.isRta ? (
+                    <input
+                        type="number"
+                        value={cat.budgeted}
+                        onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        updateCategory(cat.id, { budgeted: val });
+                        }}
+                        className="w-16 text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
+                    />
+                    ) : (
+                    <div className="w-16 h-4" />
+                    )}
+                </div>
               </div>
             </div>
           ))}

@@ -17,7 +17,9 @@ export interface Category {
   id: string;
   name: string;
   budgeted: number;
-  spent: number;
+  activity: number;
+  available: number;
+  spent: number; // For backward compatibility if needed, but will map to activity
   color: string;
   hex: string;
   isRta?: boolean;
@@ -33,8 +35,9 @@ export interface CategoryMetadata {
 
 export interface MonthlyAllocation {
   id: string;
+  month: string;
+  categoryId: string;
   budgeted: number;
-  spent: number;
 }
 
 export interface Transaction {
@@ -64,21 +67,85 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
     const qAccounts = query(collection(db, 'users', user.uid, 'accounts'));
     const qCategories = query(collection(db, 'users', user.uid, 'categories'));
-    const qMonthly = query(collection(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories'));
+    // Fetch all months to support rollover. For larger datasets, this should be optimized.
+    const qMonthly = query(collection(db, 'users', user.uid, 'monthly_allocations'));
     const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
 
     let metadata: CategoryMetadata[] = [];
-    let allocations: Record<string, MonthlyAllocation> = {};
+    let allAllocations: MonthlyAllocation[] = [];
+    let allTransactions: Transaction[] = [];
 
-    const updateMergedCategories = () => {
+    const calculateFinances = () => {
+      if (metadata.length === 0) return;
+
+      // 1. Group transactions by month and category
+      const activityMap: Record<string, Record<string, number>> = {};
+      allTransactions.forEach(tx => {
+        const month = tx.date.slice(0, 7);
+        if (!activityMap[month]) activityMap[month] = {};
+        if (!activityMap[month][tx.category]) activityMap[month][tx.category] = 0;
+        activityMap[month][tx.category] += tx.amount;
+      });
+
+      // 2. Group allocations by month and category
+      const budgetMap: Record<string, Record<string, number>> = {};
+      allAllocations.forEach(alloc => {
+        if (!budgetMap[alloc.month]) budgetMap[alloc.month] = {};
+        budgetMap[alloc.month][alloc.categoryId] = alloc.budgeted;
+      });
+
+      // 3. Recursive Available Calculation
+      // Find the range of months to calculate
+      const months = Array.from(new Set([
+        ...Object.keys(activityMap),
+        ...Object.keys(budgetMap),
+        selectedMonth
+      ])).sort();
+
+      const runningAvailable: Record<string, number> = {}; // categoryId -> amount
+      const monthResults: Record<string, Record<string, { budgeted: number, activity: number, available: number }>> = {};
+
+      months.forEach(m => {
+        monthResults[m] = {};
+        let totalBudgetedToCategories = 0;
+        
+        // Calculate non-RTA categories first
+        metadata.forEach(cat => {
+          if (cat.isRta) return;
+          const budgeted = budgetMap[m]?.[cat.id] || 0;
+          const activity = activityMap[m]?.[cat.name] || 0;
+          const prevAvailable = runningAvailable[cat.id] || 0;
+          
+          const available = prevAvailable + budgeted + activity;
+          runningAvailable[cat.id] = available;
+          totalBudgetedToCategories += budgeted;
+
+          monthResults[m][cat.id] = { budgeted, activity, available };
+        });
+
+        // Calculate RTA
+        const rtaMetadata = metadata.find(c => c.isRta);
+        if (rtaMetadata) {
+            const income = activityMap[m]?.[rtaMetadata.name] || 0;
+            const prevRta = runningAvailable[rtaMetadata.id] || 0;
+            const available = prevRta + income - totalBudgetedToCategories;
+            runningAvailable[rtaMetadata.id] = available;
+            monthResults[m][rtaMetadata.id] = { budgeted: 0, activity: income, available };
+        }
+      });
+
+      // 4. Map to current categories state
       const merged = metadata.map(m => {
-        const alloc = allocations[m.id];
+        const stats = monthResults[selectedMonth]?.[m.id] || { budgeted: 0, activity: 0, available: 0 };
         return {
           ...m,
-          budgeted: alloc?.budgeted || 0,
-          spent: alloc?.spent || 0
+          budgeted: stats.budgeted,
+          activity: stats.activity,
+          available: stats.available,
+          spent: Math.abs(stats.activity) // For UI legacy
         } as Category;
       });
+
       setCategories(merged);
     };
 
@@ -88,19 +155,18 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
     const unsubCategories = onSnapshot(qCategories, (snapshot) => {
       metadata = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CategoryMetadata));
-      updateMergedCategories();
+      calculateFinances();
     });
 
     const unsubMonthly = onSnapshot(qMonthly, (snapshot) => {
-      allocations = {};
-      snapshot.docs.forEach(d => {
-        allocations[d.id] = { id: d.id, ...d.data() } as MonthlyAllocation;
-      });
-      updateMergedCategories();
+      allAllocations = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
+      calculateFinances();
     });
 
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
-      setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+      allTransactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      setTransactions(allTransactions);
+      calculateFinances();
       setLoading(false);
     });
 
@@ -114,23 +180,12 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
   const addTransaction = async (txData: Omit<Transaction, 'id'>) => {
     if (!user) return;
-
-    const batch = writeBatch(db);
     const txRef = doc(collection(db, 'users', user.uid, 'transactions'));
-    batch.set(txRef, txData);
-
     const accRef = doc(db, 'users', user.uid, 'accounts', txData.accountId);
+    
+    const batch = writeBatch(db);
+    batch.set(txRef, txData);
     batch.update(accRef, { balance: increment(txData.amount) });
-
-    if (txData.amount < 0 && txData.category !== 'Inflow') {
-        const cat = categories.find(c => c.name === txData.category);
-        if (cat) {
-            const txMonth = txData.date.slice(0, 7);
-            const catAllocRef = doc(db, 'users', user.uid, 'monthly_budgets', txMonth, 'categories', cat.id);
-            batch.set(catAllocRef, { spent: increment(Math.abs(txData.amount)) }, { merge: true });
-        }
-    }
-
     await batch.commit();
   };
 
@@ -146,7 +201,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       const cat = categories.find(c => c.id === id);
       if (!cat) return;
 
-      // Update metadata if name/color changed
       if (data.name || data.color || data.hex) {
           if (cat.isRta && data.name) {
               alert('Cannot rename the Ready to Assign category.');
@@ -160,32 +214,37 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           batch.update(metaRef, metaUpdate);
       }
 
-      // Update monthly allocation if budgeted changed
       if (data.budgeted !== undefined) {
-          const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', id);
-          batch.set(allocRef, { budgeted: data.budgeted }, { merge: true });
+          const allocId = `${selectedMonth}_${id}`;
+          const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
+          batch.set(allocRef, { 
+              month: selectedMonth, 
+              categoryId: id, 
+              budgeted: data.budgeted 
+          }, { merge: true });
       }
 
       await batch.commit();
   };
 
-  const addCategory = async (data: Omit<Category, 'id'>) => {
+  const addCategory = async (data: Omit<Category, 'id' | 'activity' | 'available'>) => {
       if (!user) return;
       const batch = writeBatch(db);
       
       const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
-      const metadata = {
+      batch.set(metaRef, {
           name: data.name,
           color: data.color,
           hex: data.hex,
           isRta: data.isRta || false
-      };
-      batch.set(metaRef, metadata);
+      });
 
-      const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', metaRef.id);
+      const allocId = `${selectedMonth}_${metaRef.id}`;
+      const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
       batch.set(allocRef, {
-          budgeted: data.budgeted,
-          spent: data.spent
+          month: selectedMonth,
+          categoryId: metaRef.id,
+          budgeted: data.budgeted || 0
       });
 
       await batch.commit();
@@ -242,13 +301,13 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       }
 
       const categoriesData = [
-        { name: 'Ready to Assign', budgeted: 0, spent: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
-        { name: 'Rent / Mortgage', budgeted: 1500, spent: 1500, color: 'bg-blue-500', hex: '#3b82f6' },
-        { name: 'Electric', budgeted: 120, spent: 110, color: 'bg-yellow-500', hex: '#eab308' },
-        { name: 'Internet', budgeted: 80, spent: 80, color: 'bg-indigo-500', hex: '#6366f1' },
-        { name: 'Auto Insurance', budgeted: 100, spent: 0, color: 'bg-pink-500', hex: '#ec4899' },
-        { name: 'Dining Out', budgeted: 300, spent: 245, color: 'bg-orange-500', hex: '#f97316' },
-        { name: 'Emergency Fund', budgeted: 500, spent: 0, color: 'bg-emerald-500', hex: '#10b981' },
+        { name: 'Ready to Assign', budgeted: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
+        { name: 'Rent / Mortgage', budgeted: 1500, color: 'bg-blue-500', hex: '#3b82f6' },
+        { name: 'Electric', budgeted: 120, color: 'bg-yellow-500', hex: '#eab308' },
+        { name: 'Internet', budgeted: 80, color: 'bg-indigo-500', hex: '#6366f1' },
+        { name: 'Auto Insurance', budgeted: 100, color: 'bg-pink-500', hex: '#ec4899' },
+        { name: 'Dining Out', budgeted: 300, color: 'bg-orange-500', hex: '#f97316' },
+        { name: 'Emergency Fund', budgeted: 500, color: 'bg-emerald-500', hex: '#10b981' },
       ];
 
       for (const cat of categoriesData) {
@@ -260,10 +319,12 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
               isRta: cat.isRta || false
           });
 
-          const allocRef = doc(db, 'users', user.uid, 'monthly_budgets', selectedMonth, 'categories', metaRef.id);
+          const allocId = `${selectedMonth}_${metaRef.id}`;
+          const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
           batch.set(allocRef, {
-              budgeted: cat.budgeted,
-              spent: cat.spent
+              month: selectedMonth,
+              categoryId: metaRef.id,
+              budgeted: cat.budgeted
           });
       }
 

@@ -31,10 +31,11 @@ export default function Home() {
   const [isReconciling, setIsReconciling] = useState(false);
 
   // Computed
+  const rtaCategory = useMemo(() => categories.find(c => c.isRta), [categories]);
+  const rtaBalance = rtaCategory?.available || 0;
+
   const totalBudgeted = useMemo(() => categories.filter(c => !c.isRta).reduce((sum, cat) => sum + cat.budgeted, 0), [categories]);
-  const totalSpent = useMemo(() => categories.reduce((sum, cat) => sum + cat.spent, 0), [categories]);
-  const totalInflowValue = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
-  const rtaBalance = totalInflowValue - totalBudgeted;
+  const totalSpent = useMemo(() => categories.filter(c => !c.isRta).reduce((sum, cat) => sum + Math.abs(cat.activity), 0), [categories]);
 
   const activeAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
 
