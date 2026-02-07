@@ -20,7 +20,9 @@ const ColdStartManager = () => {
   useEffect(() => {
     if (user) {
       const selectedMonth = new Date().toISOString().slice(0, 7);
-      checkAndSeedColdStart(db, user.uid, selectedMonth);
+      void checkAndSeedColdStart(db, user.uid, selectedMonth).catch((error) => {
+        console.error('Error during cold start seeding', error);
+      });
     }
   }, [user]);
 
