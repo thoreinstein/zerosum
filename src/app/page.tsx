@@ -23,7 +23,7 @@ export default function Home() {
   const {
     accounts, categories, transactions, loading: dataLoading,
     addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
-    hasPendingWrites, pendingMutations, retryMutation
+    hasPendingWrites, pendingMutations, retryMutation, toasts, retryingIds
   } = useFinanceData(selectedMonth);
 
   const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
@@ -211,11 +211,32 @@ export default function Home() {
               </div>
               <button 
                 onClick={() => retryMutation(mutation.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
+                disabled={retryingIds.has(mutation.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-bold transition-colors"
               >
-                <RefreshCw size={14} />
-                Retry
+                <RefreshCw size={14} className={retryingIds.has(mutation.id) ? 'animate-spin' : ''} />
+                {retryingIds.has(mutation.id) ? 'Retrying...' : 'Retry'}
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Global Toasts */}
+      {toasts.length > 0 && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-[60] pointer-events-none w-full max-w-sm px-4">
+          {toasts.map((toast) => (
+            <div 
+              key={toast.id} 
+              className={`
+                p-4 rounded-2xl shadow-2xl border flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto
+                ${toast.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/30 text-red-600' : 
+                  toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/30 text-emerald-600' : 
+                  'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300'}
+              `}
+            >
+              {toast.type === 'error' && <AlertCircle size={18} />}
+              <p className="text-sm font-medium">{toast.message}</p>
             </div>
           ))}
         </div>
