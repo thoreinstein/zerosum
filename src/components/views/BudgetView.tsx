@@ -119,7 +119,7 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
       {/* Category List */}
       <div className="glass-card rounded-[2rem] overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Categories</h3>
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Categories</h2>
           <button
             onClick={handleAdd}
             className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700 transition-colors"
@@ -149,6 +149,7 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                       className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors rounded-2xl md:rounded-none mb-3 md:mb-0 p-4 md:px-8 md:py-5 border border-slate-100 dark:border-slate-800 md:border-none shadow-sm md:shadow-none bg-white dark:bg-slate-900/50 md:bg-transparent md:grid md:grid-cols-[1fr,120px,120px,120px] md:gap-4 md:items-center`}
                       role="button"
                       tabIndex={0}
+                      aria-label={`View details for ${cat.name}`}
                       onClick={() => setSelectedForDetails(cat)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
@@ -183,12 +184,13 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                          <input
                             type="number"
                             value={cat.budgeted}
+                            aria-label={`Budgeted amount for ${cat.name}`}
                             onChange={(e) => {
                                 const val = parseFloat(e.target.value) || 0;
                                 updateCategory(cat.id, { budgeted: val });
                             }}
                              onClick={(e) => e.stopPropagation()}
-                            className="w-full text-right bg-transparent border-none p-0 focus:ring-0 text-slate-500 dark:text-slate-400 font-medium"
+                            className="w-full text-right bg-transparent border-none p-0 focus:ring-0 text-slate-500 dark:text-slate-400 font-medium hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded transition-colors cursor-text"
                         />
                     </div>
                     <div className="hidden md:flex flex-col items-end">
@@ -216,6 +218,7 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                 onClick={() => setSelectedForDetails(cat)}
                 role="button"
                 tabIndex={0}
+                aria-label={`View details for ${cat.name}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
@@ -253,12 +256,13 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                     <input
                         type="number"
                         value={cat.budgeted}
+                        aria-label={`Budgeted amount for ${cat.name}`}
                         onChange={(e) => {
                             const val = parseFloat(e.target.value) || 0;
                             updateCategory(cat.id, { budgeted: val });
                         }}
                          onClick={(e) => e.stopPropagation()}
-                        className="w-full text-right bg-transparent border-none p-0 focus:ring-0 text-slate-500 dark:text-slate-400 font-medium"
+                        className="w-full text-right bg-transparent border-none p-0 focus:ring-0 text-slate-500 dark:text-slate-400 font-medium hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded transition-colors cursor-text"
                     />
                     ) : <div />}
                 </div>
