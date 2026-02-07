@@ -1,7 +1,10 @@
 import { useState, useRef } from 'react';
 import { Account, Category, Transaction } from '@/hooks/useFinanceData';
 import { scanReceipt } from '@/app/actions/scanReceipt';
-import { Camera, CameraOff, Sparkles, X } from 'lucide-react';
+import { Camera, CameraOff, Sparkles, X, Clock } from 'lucide-react';
+import { doc, collection } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/context/AuthContext';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -10,9 +13,11 @@ interface TransactionModalProps {
   categories: Category[];
   onAddTransaction: (data: Omit<Transaction, 'id'>) => Promise<void>;
   defaultAccountId?: string;
+  storeImage?: (txId: string, base64Image: string) => Promise<void>;
 }
 
-export default function TransactionModal({ isOpen, onClose, accounts, categories, onAddTransaction, defaultAccountId }: TransactionModalProps) {
+export default function TransactionModal({ isOpen, onClose, accounts, categories, onAddTransaction, defaultAccountId, storeImage }: TransactionModalProps) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     type: 'outflow',
     date: new Date().toISOString().split('T')[0],
@@ -23,6 +28,7 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
   });
 
   const [isScanning, setIsScanning] = useState(false);
+  const [isQueuing, setIsQueuing] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -65,24 +71,58 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
   };
 
   const processReceipt = async (base64Data: string) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setIsQueuing(true);
+      try {
+        if (!user) return;
+        const txRef = doc(collection(db, 'users', user.uid, 'transactions'));
+        const txId = txRef.id;
+
+        if (storeImage) {
+          await storeImage(txId, base64Data);
+                    await onAddTransaction({
+                      date: formData.date,
+                      payee: 'Queued Receipt',
+                      category: 'Ready to Assign',
+                      amount: 0,
+                      status: 'uncleared',
+                      accountId: formData.accountId,
+                      scanStatus: 'pending'
+                    });
+           // Use any temporarily to avoid ID confusion in onAddTransaction wrapper
+          onClose();
+        }
+      } catch (error) {
+        console.error('Failed to queue receipt:', error);
+        alert('Failed to queue receipt for offline scanning.');
+      }
+      setIsQueuing(false);
+      return;
+    }
+
     setIsScanning(true);
 
     // Pass category names to help the AI
     const categoryNames = categories.map(c => c.name);
 
-    const result = await scanReceipt(base64Data, categoryNames);
+    try {
+      const result = await scanReceipt(base64Data, categoryNames);
 
-    if (result.success && result.data) {
-        const { payee, amount, date, category } = result.data;
-        setFormData(prev => ({
-            ...prev,
-            payee: payee || prev.payee,
-            amount: amount ? String(amount) : prev.amount,
-            date: date || prev.date,
-            category: category || prev.category
-        }));
-    } else {
-        alert('Failed to scan receipt: ' + (result.error || 'Unknown error'));
+      if (result.success && result.data) {
+          const { payee, amount, date, category } = result.data;
+          setFormData(prev => ({
+              ...prev,
+              payee: payee || prev.payee,
+              amount: amount ? String(amount) : prev.amount,
+              date: date || prev.date,
+              category: category || prev.category
+          }));
+      } else {
+          alert('Failed to scan receipt: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Scan error:', error);
+      alert('Failed to scan receipt.');
     }
 
     setIsScanning(false);
@@ -143,6 +183,7 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
             </div>
           )}
           {isScanning && <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl flex items-center gap-3 text-blue-600 text-sm animate-pulse"><Sparkles className="animate-spin" size={20} /> Analyzing...</div>}
+          {isQueuing && <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl flex items-center gap-3 text-amber-600 text-sm animate-pulse"><Clock className="animate-spin" size={20} /> Queuing for offline scan...</div>}
           {!cameraActive && (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">

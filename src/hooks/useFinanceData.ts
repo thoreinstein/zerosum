@@ -67,6 +67,7 @@ export interface Transaction {
   status: 'cleared' | 'reconciled' | 'uncleared';
   accountId: string;
   isPending?: boolean;
+  scanStatus?: 'pending' | 'scanning' | 'completed' | 'failed';
 }
 
 export function useFinanceData(selectedMonth: string = new Date().toISOString().slice(0, 7)) {

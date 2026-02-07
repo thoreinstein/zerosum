@@ -14,6 +14,7 @@ import ReportsView from '@/components/views/ReportsView';
 import TransactionModal from '@/components/modals/TransactionModal';
 import ReconcileModal from '@/components/modals/ReconcileModal';
 import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
+import { useAIQueue } from '@/hooks/useAIQueue';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -24,6 +25,9 @@ export default function Home() {
     addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
     hasPendingWrites, pendingMutations, retryMutation
   } = useFinanceData(selectedMonth);
+
+  const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
+  const { storeImage } = useAIQueue(transactions, updateTransaction, categoryNames);
 
   const [activeTab, setActiveTab] = useState('budget');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -175,6 +179,7 @@ export default function Home() {
            setShowTransactionModal(false);
         }}
         defaultAccountId={selectedAccountId || undefined}
+        storeImage={storeImage}
       />
 
       {selectedAccountId && activeAccount && (
