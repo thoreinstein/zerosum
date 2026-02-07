@@ -102,13 +102,15 @@ export function useFinanceData(monthOverride?: string) {
   // Merge active data with pooled background data
   const combinedAllocations = useMemo(() => {
     const pooled = Object.values(pooledData || {}).flatMap(d => d.allocations || []);
-    const merged = [...allocations, ...pooled];
+    // Ensure that allocations (active/optimistic state) override pooled data on ID collisions
+    const merged = [...pooled, ...allocations];
     return Array.from(new Map(merged.map(item => [item.id, item])).values());
   }, [allocations, pooledData]);
 
   const combinedTransactions = useMemo(() => {
     const pooled = Object.values(pooledData || {}).flatMap(d => d.transactions || []);
-    const merged = [...allTransactions, ...pooled];
+    // Ensure that active transactions override pooled data on ID collisions
+    const merged = [...pooled, ...allTransactions];
     return Array.from(new Map(merged.map(item => [item.id, item])).values());
   }, [allTransactions, pooledData]);
 
