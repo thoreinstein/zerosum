@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { useFinanceData } from '@/hooks/useFinanceData';
+import { auth, db } from '@/lib/firebase';
+import { checkAndSeedColdStart } from '@/lib/coldStart';
 
 interface AuthContextType {
   user: User | null;
@@ -16,13 +16,13 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 const ColdStartManager = () => {
   const { user } = useAuth();
-  const { checkAndSeedColdStart } = useFinanceData();
 
   useEffect(() => {
     if (user) {
-      checkAndSeedColdStart();
+      const selectedMonth = new Date().toISOString().slice(0, 7);
+      checkAndSeedColdStart(db, user.uid, selectedMonth);
     }
-  }, [user, checkAndSeedColdStart]);
+  }, [user]);
 
   return null;
 };

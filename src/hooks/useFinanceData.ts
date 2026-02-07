@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   collection, query, onSnapshot, updateDoc, doc, deleteDoc,
   orderBy, writeBatch, increment, where, getDocs
@@ -280,13 +280,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
   const addTransaction = async (txData: Omit<Transaction, 'id'>, id?: string) => {
     if (!user) return;
     
-    // Client-side ID generation for optimistic update
+    // Client-side ID generation for Firestore write
     const txRef = id ? doc(db, 'users', user.uid, 'transactions', id) : doc(collection(db, 'users', user.uid, 'transactions'));
-    const txId = txRef.id;
-    const newTx = { ...txData, id: txId } as Transaction;
 
-    // Optimistic Update
-    setTransactionsData(prev => [newTx, ...prev]);
+    // We rely on Firestore's native latency compensation (local cache)
+    // for the optimistic update of the 'transactionsData' via onSnapshot.
     
     try {
       const accRef = doc(db, 'users', user.uid, 'accounts', txData.accountId);
@@ -304,9 +302,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       await batch.commit();
     } catch (error) {
       console.error('Failed to add transaction:', error);
-      // Rollback optimistic update
-      setTransactionsData(prev => prev.filter(tx => tx.id !== txId));
-      // Save for retry
+      // Even with latency compensation, we add to pending for retry if the write fails globally.
       setPendingMutations(prev => [...prev, {
         id: Math.random().toString(36).substr(2, 9),
         type: 'add',
@@ -530,70 +526,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     }
   };
 
-  const reconcileAccount = async (accountId: string) => {
-      if (!user) return;
-      const q = query(
-          collection(db, 'users', user.uid, 'transactions'),
-          where('accountId', '==', accountId),
-          where('status', '==', 'cleared')
-      );
-      const snapshot = await getDocs(q);
-      const batch = writeBatch(db);
-      snapshot.docs.forEach(d => {
-          batch.update(d.ref, { status: 'reconciled' });
-      });
-      await batch.commit();
-  };
-
-  const checkAndSeedColdStart = useCallback(async () => {
-    if (!user) return;
-    
-    // Idempotency check: only seed if no accounts exist
-    const q = query(collection(db, 'users', user.uid, 'accounts'));
-    const snapshot = await getDocs(q);
-    if (!snapshot.empty) return;
-
-    const batch = writeBatch(db);
-
-    const accountsData = [
-      { name: 'Main Checking', type: 'Checking', balance: 0 },
-      { name: 'Savings', type: 'Savings', balance: 0 },
-    ];
-
-    for (const acc of accountsData) {
-      const ref = doc(collection(db, 'users', user.uid, 'accounts'));
-      batch.set(ref, acc);
-    }
-
-    const categoriesData = [
-      { name: 'Ready to Assign', budgeted: 0, color: 'bg-slate-500', hex: '#64748b', isRta: true },
-      { name: 'Rent / Mortgage', budgeted: 0, color: 'bg-blue-500', hex: '#3b82f6' },
-      { name: 'Groceries', budgeted: 0, color: 'bg-emerald-500', hex: '#10b981' },
-      { name: 'Utilities', budgeted: 0, color: 'bg-yellow-500', hex: '#eab308' },
-      { name: 'Dining Out', budgeted: 0, color: 'bg-orange-500', hex: '#f97316' },
-    ];
-
-    for (const cat of categoriesData) {
-      const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
-      batch.set(metaRef, {
-        name: cat.name,
-        color: cat.color,
-        hex: cat.hex,
-        isRta: cat.isRta || false
-      });
-
-      const allocId = `${selectedMonth}_${metaRef.id}`;
-      const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
-      batch.set(allocRef, {
-        month: selectedMonth,
-        categoryId: metaRef.id,
-        budgeted: cat.budgeted
-      });
-    }
-
-    await batch.commit();
-  }, [user, selectedMonth]);
-
   const seedData = async () => {
     if (!user) return;
     const batch = writeBatch(db);
@@ -640,6 +572,21 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     await batch.commit();
   };
 
+  const reconcileAccount = async (accountId: string) => {
+      if (!user) return;
+      const q = query(
+          collection(db, 'users', user.uid, 'transactions'),
+          where('accountId', '==', accountId),
+          where('status', '==', 'cleared')
+      );
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+      snapshot.docs.forEach(d => {
+          batch.update(d.ref, { status: 'reconciled' });
+      });
+      await batch.commit();
+  };
+
   return {
     accounts,
     categories,
@@ -654,7 +601,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     deleteCategory,
     reconcileAccount,
     seedData,
-    checkAndSeedColdStart,
     retryMutation
   };
 }
