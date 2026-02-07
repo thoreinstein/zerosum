@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
-import { LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LogOut, ChevronLeft, ChevronRight, CloudOff, CloudSync } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   title: string;
@@ -7,10 +8,25 @@ interface HeaderProps {
   rtaBalance: number;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
+  hasPendingWrites?: boolean;
 }
 
-export default function Header({ title, subtitle, rtaBalance, selectedMonth, onMonthChange }: HeaderProps) {
+export default function Header({ title, subtitle, rtaBalance, selectedMonth, onMonthChange, hasPendingWrites = false }: HeaderProps) {
   const { logout, user } = useAuth();
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -69,6 +85,26 @@ export default function Header({ title, subtitle, rtaBalance, selectedMonth, onM
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Sync Status */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" aria-live="polite">
+            {!isOnline ? (
+              <>
+                <CloudOff size={14} className="text-amber-500" />
+                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Offline</span>
+              </>
+            ) : hasPendingWrites ? (
+              <>
+                <CloudSync size={14} className="text-blue-500 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Syncing</span>
+              </>
+            ) : (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Synced</span>
+              </>
+            )}
+          </div>
+
           {/* Desktop "To Be Budgeted" */}
           <div className="hidden md:block text-right mr-4">
             <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold">To Be Budgeted</p>

@@ -1,5 +1,5 @@
 import { Transaction } from '@/hooks/useFinanceData';
-import { ArrowLeft, CheckCheck, Lock, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCheck, Lock, FileText, CloudSync } from 'lucide-react';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
@@ -32,7 +32,7 @@ export default function TransactionsView({ transactions, selectedAccountId, onCl
         >
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${tx.status === 'reconciled' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-              {tx.status === 'reconciled' ? <Lock size={20} /> : <FileText size={20} />}
+              {tx.isPending ? <CloudSync size={20} className="text-blue-500 animate-pulse" /> : tx.status === 'reconciled' ? <Lock size={20} /> : <FileText size={20} />}
             </div>
             <div>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tx.payee}</p>
