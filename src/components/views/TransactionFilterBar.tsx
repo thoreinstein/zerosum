@@ -1,7 +1,8 @@
 'use client';
 
 import { TransactionFilters } from '@/hooks/usePaginatedTransactions';
-import { Filter, Calendar, X } from 'lucide-react';
+import { Filter, Calendar, X, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface TransactionFilterBarProps {
   filters: TransactionFilters;
@@ -9,15 +10,30 @@ interface TransactionFilterBarProps {
 }
 
 export default function TransactionFilterBar({ filters, setFilters }: TransactionFilterBarProps) {
+  const [localSearch, setLocalSearch] = useState(filters.searchQuery || '');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters({ ...filters, searchQuery: localSearch });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localSearch]);
+
+  // Sync local search when filters are cleared externally
+  useEffect(() => {
+    setLocalSearch(filters.searchQuery || '');
+  }, [filters.searchQuery]);
+
   const handleStatusChange = (status: TransactionFilters['status']) => {
     setFilters({ ...filters, status });
   };
 
   const clearFilters = () => {
-    setFilters({ accountId: filters.accountId });
+    setLocalSearch('');
+    setFilters({ accountId: filters.accountId, status: 'all' });
   };
 
-  const hasActiveFilters = !!(filters.status && filters.status !== 'all') || !!filters.startDate || !!filters.endDate;
+  const hasActiveFilters = !!(filters.status && filters.status !== 'all') || !!filters.startDate || !!filters.endDate || !!filters.searchQuery;
 
   return (
     <div className="flex flex-col gap-3 mb-6 p-4 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm">
@@ -32,6 +48,26 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
             className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg transition-colors"
           >
             <X size={12} /> Clear All
+          </button>
+        )}
+      </div>
+
+      {/* Search Input */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        <input
+          type="text"
+          placeholder="Search payees..."
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
+          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2.5 pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+        />
+        {localSearch && (
+          <button 
+            onClick={() => setLocalSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            <X size={14} />
           </button>
         )}
       </div>
