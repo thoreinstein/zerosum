@@ -95,7 +95,7 @@ export function useFinanceData(monthOverride?: string) {
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const isInitialized = useRef(false);
   const errorBuffer = useRef<string[]>([]);
-  const errorTimer = useRef<NodeJS.Timeout | null>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
