@@ -1,8 +1,7 @@
-import { Transaction } from '@/hooks/useFinanceData';
 import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginatedTransactions';
 import TransactionFilterBar from './TransactionFilterBar';
 import { useFinance } from '@/context/FinanceContext';
-import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync } from 'lucide-react';
+import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface TransactionsViewProps {
@@ -21,7 +20,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
     setFilters(prev => ({ ...prev, accountId: selectedAccountId }));
   }, [selectedAccountId]);
 
-  const { transactions, loading, loadingMore, hasMore, fetchNextPage } = usePaginatedTransactions(filters);
+  const { transactions, loading, loadingMore, hasMore, error, fetchNextPage } = usePaginatedTransactions(filters);
   const observerTarget = useRef(null);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
@@ -32,11 +31,11 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !error) {
           fetchNextPage();
         }
       },
-      { threshold: 1.0 }
+      { threshold: 0.1 }
     );
 
     if (observerTarget.current) {
@@ -117,9 +116,24 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
         </div>
       )}
 
-      {!hasMore && transactions.length > 0 && (
+      {!hasMore && transactions.length > 0 && !error && (
         <div className="text-center py-6 border-t border-slate-100 dark:border-slate-800 mt-4">
           <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">End of transactions</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex flex-col items-center justify-center py-8 px-4 gap-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-2xl mt-4">
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <AlertTriangle size={20} />
+            <p className="text-sm font-bold">Failed to load transactions</p>
+          </div>
+          <button 
+            onClick={() => fetchNextPage()}
+            className="flex items-center gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw size={14} /> Retry
+          </button>
         </div>
       )}
     </div>
