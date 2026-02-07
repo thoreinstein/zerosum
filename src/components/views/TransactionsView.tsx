@@ -20,8 +20,8 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
     setFilters(prev => ({ ...prev, accountId: selectedAccountId }));
   }, [selectedAccountId]);
 
-  const { transactions, loading, loadingMore, hasMore, error, fetchNextPage } = usePaginatedTransactions(filters);
-  const observerTarget = useRef(null);
+  const { transactions, loading, loadingMore, hasMore, error, fetchNextPage, refresh } = usePaginatedTransactions(filters);
+  const observerTarget = useRef<HTMLDivElement | null>(null);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     await onToggleStatus(id, currentStatus);
@@ -43,7 +43,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
     }
 
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, fetchNextPage]);
+  }, [hasMore, loadingMore, error, fetchNextPage]);
 
   if (loading && transactions.length === 0) {
     return (
@@ -129,7 +129,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
             <p className="text-sm font-bold">Failed to load transactions</p>
           </div>
           <button 
-            onClick={() => fetchNextPage()}
+            onClick={() => refresh()}
             className="flex items-center gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-slate-50 transition-colors"
           >
             <RefreshCw size={14} /> Retry
