@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   collection, query, onSnapshot, updateDoc, doc, deleteDoc,
   orderBy, writeBatch, increment, where, getDocs
@@ -77,7 +77,14 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
   const [transactionsData, setTransactionsData] = useState<Transaction[]>([]);
   const [allocationsData, setAllocationsData] = useState<MonthlyAllocation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasPendingWrites, setHasPendingWrites] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<Record<string, boolean>>({
+    accounts: false,
+    categories: false,
+    monthly: false,
+    transactions: false
+  });
+
+  const hasPendingWrites = useMemo(() => Object.values(syncStatus).some(v => v), [syncStatus]);
 
   // Optimistic Categories & Transactions
   const [categories, setCategories] = useState<Category[]>([]);
@@ -99,19 +106,19 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     const unsubAccounts = onSnapshot(qAccounts, { includeMetadataChanges: true }, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account));
       setAccounts(data);
-      setHasPendingWrites(snapshot.metadata.hasPendingWrites);
+      setSyncStatus(prev => ({ ...prev, accounts: snapshot.metadata.hasPendingWrites }));
     });
 
     const unsubCategories = onSnapshot(qCategories, { includeMetadataChanges: true }, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CategoryMetadata));
       setCategoriesMetadata(data);
-      setHasPendingWrites(snapshot.metadata.hasPendingWrites);
+      setSyncStatus(prev => ({ ...prev, categories: snapshot.metadata.hasPendingWrites }));
     });
 
     const unsubMonthly = onSnapshot(qMonthly, { includeMetadataChanges: true }, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
       setAllocationsData(data);
-      setHasPendingWrites(snapshot.metadata.hasPendingWrites);
+      setSyncStatus(prev => ({ ...prev, monthly: snapshot.metadata.hasPendingWrites }));
     });
 
     const unsubTransactions = onSnapshot(qTransactions, { includeMetadataChanges: true }, (snapshot) => {
@@ -121,7 +128,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         isPending: d.metadata.hasPendingWrites
       } as Transaction));
       setTransactionsData(data);
-      setHasPendingWrites(snapshot.metadata.hasPendingWrites);
+      setSyncStatus(prev => ({ ...prev, transactions: snapshot.metadata.hasPendingWrites }));
       setLoading(false);
     });
 
@@ -255,11 +262,11 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     localStorage.setItem('zerosum_pending_mutations', JSON.stringify(pendingMutations));
   }, [pendingMutations]);
 
-  const addTransaction = async (txData: Omit<Transaction, 'id'>) => {
+  const addTransaction = async (txData: Omit<Transaction, 'id'>, id?: string) => {
     if (!user) return;
     
     // Client-side ID generation for optimistic update
-    const txRef = doc(collection(db, 'users', user.uid, 'transactions'));
+    const txRef = id ? doc(db, 'users', user.uid, 'transactions', id) : doc(collection(db, 'users', user.uid, 'transactions'));
     const txId = txRef.id;
     const newTx = { ...txData, id: txId } as Transaction;
 

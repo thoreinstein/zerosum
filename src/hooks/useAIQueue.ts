@@ -3,6 +3,9 @@
 import { useEffect, useCallback } from 'react';
 import { scanReceipt } from '@/app/actions/scanReceipt';
 import { Transaction } from '@/hooks/useFinanceData';
+import { writeBatch, doc, increment } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/context/AuthContext';
 
 const DB_NAME = 'zerosum_ai_cache';
 const STORE_NAME = 'receipt_images';
@@ -12,6 +15,7 @@ export function useAIQueue(
   updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>,
   categoryNames: string[]
 ) {
+  const { user } = useAuth();
   
   const initDB = useCallback((): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
@@ -62,6 +66,7 @@ export function useAIQueue(
 
   const processQueue = useCallback(async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (!user) return;
 
     const pending = transactions.filter(t => t.scanStatus === 'pending');
     for (const tx of pending) {
@@ -76,13 +81,26 @@ export function useAIQueue(
         const result = await scanReceipt(image, categoryNames);
         if (result.success && result.data) {
           const { payee, amount, date, category } = result.data;
-          await updateTransaction(tx.id, {
+          const finalAmount = amount ? -Math.abs(amount) : 0;
+          const diff = finalAmount - tx.amount;
+
+          const batch = writeBatch(db);
+          const txRef = doc(db, 'users', user.uid, 'transactions', tx.id);
+          const accRef = doc(db, 'users', user.uid, 'accounts', tx.accountId);
+
+          batch.update(txRef, {
             payee: payee || tx.payee,
-            amount: amount ? -Math.abs(amount) : tx.amount, // Assume outflow for receipts
+            amount: finalAmount,
             date: date || tx.date,
             category: category || tx.category,
             scanStatus: 'completed'
           });
+
+          if (diff !== 0) {
+            batch.update(accRef, { balance: increment(diff) });
+          }
+
+          await batch.commit();
           await deleteImage(tx.id);
         } else {
           console.error('Scan failed:', result.error);
@@ -93,7 +111,7 @@ export function useAIQueue(
         await updateTransaction(tx.id, { scanStatus: 'failed' });
       }
     }
-  }, [transactions, updateTransaction, getImage, deleteImage, categoryNames]);
+  }, [transactions, updateTransaction, getImage, deleteImage, categoryNames, user]);
 
   useEffect(() => {
     const interval = setInterval(processQueue, 30000); // Check every 30s
