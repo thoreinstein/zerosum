@@ -147,11 +147,17 @@ export default function Home() {
           />
         )}
 
+        {/* Floating Action Button */}
         <button
           onClick={() => setShowTransactionModal(true)}
-          className="fixed bottom-24 right-6 md:bottom-10 md:right-10 bg-blue-600 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center z-30 transition-transform active:scale-90 hover:scale-105 cursor-pointer"
+          className="
+            fixed z-30 bg-blue-600 text-white shadow-2xl shadow-blue-600/40 transition-all active:scale-95
+            bottom-24 right-6 w-14 h-14 rounded-full flex items-center justify-center hover:scale-105
+            md:bottom-10 md:right-10 md:w-auto md:h-auto md:p-5 md:gap-3 md:hover:scale-110 group
+          "
         >
-          <Plus size={32} />
+          <Plus size={28} className="md:w-6 md:h-6" />
+          <span className="hidden md:block font-bold pr-0 max-w-0 overflow-hidden group-hover:max-w-[150px] group-hover:pr-2 transition-all duration-300 whitespace-nowrap">Add Transaction</span>
         </button>
       </main>
 

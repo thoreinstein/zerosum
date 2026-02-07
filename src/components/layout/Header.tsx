@@ -10,23 +10,17 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, rtaBalance, selectedMonth, onMonthChange }: HeaderProps) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month - 2);
-    const minDate = new Date();
-    minDate.setMonth(minDate.getMonth() - 12); // Restrict to 1 year back for now
-    if (date < minDate) return;
     onMonthChange(date.toISOString().slice(0, 7));
   };
 
   const handleNextMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month);
-    const maxDate = new Date();
-    maxDate.setMonth(maxDate.getMonth() + 1); // Restrict to current month + 1
-    if (date > maxDate) return;
     onMonthChange(date.toISOString().slice(0, 7));
   };
 
@@ -35,44 +29,76 @@ export default function Header({ title, subtitle, rtaBalance, selectedMonth, onM
     return new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
+  // Only show month nav if the title is "Budget" (or if we are on the budget tab)
+  const isBudgetTab = title === 'Budget';
+
+  // Custom header content based on design
+  const displayTitle = isBudgetTab ? `${formatMonth(selectedMonth)} Budget` : title;
+  const displaySubtitle = isBudgetTab ? "Zero-sum achieved. Every dollar has a job." : subtitle;
+
   return (
-    <header className="sticky top-0 bg-[#fcfcfd]/80 dark:bg-[#0f172a]/80 backdrop-blur-md pt-6 pb-4 md:pt-10 md:pb-6 flex items-center justify-between z-20">
-      <div className="flex flex-col">
-        <div className="flex items-center gap-3">
-            <h1 className="text-xl md:text-3xl font-bold tracking-tight uppercase tracking-widest text-slate-900 dark:text-slate-100">
-            {title}
-            </h1>
-            {title === 'Budget' && (
-                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 ml-4">
-                    <button onClick={handlePrevMonth} className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded transition-colors text-slate-500">
-                        <ChevronLeft size={16} />
-                    </button>
-                    <span className="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 min-w-[120px] text-center">
-                        {formatMonth(selectedMonth)}
-                    </span>
-                    <button onClick={handleNextMonth} className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded transition-colors text-slate-500">
-                        <ChevronRight size={16} />
-                    </button>
-                </div>
+    <>
+      <header className="sticky top-0 bg-[#fcfcfd]/80 dark:bg-[#0f172a]/80 backdrop-blur-md pt-8 pb-4 px-6 flex items-center justify-between z-20">
+        <div>
+          <div className="flex items-center gap-2">
+            {isBudgetTab && (
+              <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
+                <ChevronLeft size={20} />
+              </button>
             )}
-        </div>
-        <p className="text-[10px] md:text-sm text-slate-500 font-medium">
-          {subtitle}
-        </p>
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="text-right flex flex-col items-end">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">
-            {rtaBalance > 0 ? 'Ready to Assign' : rtaBalance < 0 ? 'Overbudgeted' : 'All Money Assigned'}
+            <h1 className="text-xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">
+              {isBudgetTab ? (
+                  <span className="hidden md:inline">{displayTitle}</span>
+              ) : title}
+              {isBudgetTab && (
+                  <span className="md:hidden">{formatMonth(selectedMonth)}</span>
+              )}
+            </h1>
+            {isBudgetTab && (
+              <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
+                <ChevronRight size={20} />
+              </button>
+            )}
+          </div>
+          <p className="hidden md:block text-slate-500 dark:text-slate-400 font-medium mt-1">
+            {displaySubtitle}
           </p>
-          <div className={`px-4 py-2 rounded-2xl ${rtaBalance > 0 ? 'bg-emerald-500/10 text-emerald-500' : rtaBalance < 0 ? 'bg-red-500/10 text-red-500' : 'bg-slate-500/10 text-slate-500'} font-bold text-lg md:text-2xl transition-all`}>
-            ${rtaBalance.toLocaleString()}
+          <p className="md:hidden text-[10px] uppercase tracking-widest text-slate-400 font-bold mt-1">
+             {isBudgetTab ? "Zero-Based Budget" : subtitle}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Desktop "To Be Budgeted" */}
+          <div className="hidden md:block text-right mr-4">
+            <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold">To Be Budgeted</p>
+            <p className={`text-2xl font-bold ${rtaBalance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+              ${rtaBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+
+          <div className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-white dark:border-slate-800 shadow-sm relative group cursor-pointer">
+            <img
+              alt="User Profile"
+              src={user?.photoURL || "https://lh3.googleusercontent.com/aida-public/AB6AXuCQJAyWgraP0W0NVA9Rf7gvjXLfhcL_fMrBFXorVyQd4sbJcqifFS5OX7PtQz4TxGtTeJFpDoy1ECt_8KGywRAilAczS-4fJAFW3cF2gFNLq6_qJ_RuWM4Ufp3UYHph9IffLwQ--ainhsUFFwgY2jdXIuWk2EgfjoVnPnpkhsITL8fvTVn6qXQgtyiMmJvgSuzT3wGPHYoSHdW1x9AQK6aCghMpvhPF52aR7d5DvsgULJryQ5kipT6kjjZoI4f_o1eAPU6PgiQjaWY"}
+              className="w-full h-full object-cover"
+            />
+             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" onClick={logout}>
+                <LogOut size={16} className="text-white" />
+            </div>
           </div>
         </div>
-        <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sign Out">
-          <LogOut size={20} />
-        </button>
-      </div>
-    </header>
+      </header>
+
+      {/* Mobile "To Be Budgeted" */}
+      {isBudgetTab && (
+        <div className="md:hidden flex flex-col items-center mt-2 mb-6">
+          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">To Be Budgeted</span>
+          <div className={`text-3xl font-bold ${rtaBalance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+            ${rtaBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
