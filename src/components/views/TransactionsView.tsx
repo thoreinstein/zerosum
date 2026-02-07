@@ -36,7 +36,12 @@ export default function TransactionsView({ transactions, selectedAccountId, onCl
             </div>
             <div>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tx.payee}</p>
-              <p className="text-[10px] text-slate-400">{tx.date} • {tx.category}</p>
+              <p className="text-[10px] text-slate-400">
+                {tx.date} • {tx.category}
+                {tx.scanStatus === 'pending' && <span className="ml-2 text-amber-500 font-bold uppercase text-[8px]">Queued for Scan</span>}
+                {tx.scanStatus === 'scanning' && <span className="ml-2 text-blue-500 font-bold uppercase text-[8px]">Scanning...</span>}
+                {tx.scanStatus === 'failed' && <span className="ml-2 text-red-500 font-bold uppercase text-[8px]">Scan Failed</span>}
+              </p>
             </div>
           </div>
           <div className="text-right">
