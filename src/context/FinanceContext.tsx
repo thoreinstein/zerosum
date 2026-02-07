@@ -39,9 +39,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       accessOrder.current = [month, ...accessOrder.current.filter(m => m !== month)];
       
       // Prune to 3 months
-      if (Object.keys(next).length > 3) {
+      while (Object.keys(next).length > 3 && accessOrder.current.length > 0) {
         const toRemove = accessOrder.current.pop();
-        if (toRemove && toRemove !== selectedMonth) {
+        if (toRemove && toRemove !== selectedMonth && toRemove in next) {
           delete next[toRemove];
         }
       }
