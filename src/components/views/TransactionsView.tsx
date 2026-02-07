@@ -1,18 +1,46 @@
 import { Transaction } from '@/hooks/useFinanceData';
-import { ArrowLeft, CheckCheck, Lock, FileText, CloudSync } from 'lucide-react';
+import { usePaginatedTransactions } from '@/hooks/usePaginatedTransactions';
+import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 interface TransactionsViewProps {
-  transactions: Transaction[];
   selectedAccountId: string | null;
   onClearSelection: () => void;
   onReconcile: () => void;
   onToggleStatus: (id: string, currentStatus: string) => void;
 }
 
-export default function TransactionsView({ transactions, selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
+export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
+  const { transactions, loading, loadingMore, hasMore, fetchNextPage } = usePaginatedTransactions(selectedAccountId);
+  const observerTarget = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, fetchNextPage]);
+
+  if (loading && transactions.length === 0) {
+    return (
+      <div className="flex justify-center py-10">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-10">
       {selectedAccountId && (
         <div className="flex gap-2 mb-4">
           <button onClick={onReconcile} className="flex-1 bg-slate-900 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors cursor-pointer">
@@ -56,9 +84,25 @@ export default function TransactionsView({ transactions, selectedAccountId, onCl
         </div>
       ))}
 
-      {transactions.length === 0 && (
+      {transactions.length === 0 && !loading && (
         <div className="text-center py-10 text-slate-400">
           <p>No transactions found.</p>
+        </div>
+      )}
+
+      {/* Pagination Sentinel */}
+      <div ref={observerTarget} className="h-4 w-full" />
+
+      {loadingMore && (
+        <div className="flex flex-col items-center justify-center py-4 gap-2 text-slate-400">
+          <Loader2 className="animate-spin" size={20} />
+          <p className="text-xs font-medium">Loading more...</p>
+        </div>
+      )}
+
+      {!hasMore && transactions.length > 0 && (
+        <div className="text-center py-6 border-t border-slate-100 dark:border-slate-800 mt-4">
+          <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">End of transactions</p>
         </div>
       )}
     </div>

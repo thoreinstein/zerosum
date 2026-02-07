@@ -23,8 +23,6 @@ export default function Home() {
   
   const {
     accounts, categories, transactions, loading: dataLoading,
-  const {
-    accounts, categories, transactions, loading: dataLoading,
     addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
     hasPendingWrites, pendingMutations, retryMutation, toasts, retryingIds
   } = useFinanceData(selectedMonth);
@@ -140,7 +138,6 @@ export default function Home() {
 
         {(activeTab === 'transactions' || selectedAccountId) && (
           <TransactionsView
-            transactions={filteredTransactions}
             selectedAccountId={selectedAccountId}
             onClearSelection={() => setSelectedAccountId(null)}
             onReconcile={() => setIsReconciling(true)}
