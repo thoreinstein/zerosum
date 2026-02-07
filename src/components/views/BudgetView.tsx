@@ -184,7 +184,7 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                     </div>
                     <div className="hidden md:flex flex-col items-end">
                          <span className={`text-right font-medium ${cat.activity < 0 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-500'}`}>
-                            {cat.activity !== 0 ? (cat.activity > 0 ? `+${formatCurrency(cat.activity)}` : `-$${formatCurrency(Math.abs(cat.activity))}`) : '$0.00'}
+                            {cat.activity !== 0 ? (cat.activity > 0 ? `+$${formatCurrency(cat.activity)}` : `-$${formatCurrency(Math.abs(cat.activity))}`) : '$0.00'}
                         </span>
                     </div>
                     <div className="hidden md:flex flex-col items-end">
