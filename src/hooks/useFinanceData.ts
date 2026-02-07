@@ -333,7 +333,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     }
   }, [pendingMutations]);
 
-  const addTransaction = async (txData: Omit<Transaction, 'id'>, id?: string) => {
+  const addTransaction = async (txData: Omit<Transaction, 'id'>, id?: string, _isRetry?: boolean) => {
     if (!user) return;
     
     // Client-side ID generation for Firestore write
@@ -358,6 +358,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       await batch.commit();
     } catch (error) {
       console.error('Failed to add transaction:', error);
+      if (_isRetry) throw error;
       // Even with latency compensation, we add to pending for retry if the write fails globally.
       setPendingMutations(prev => [...prev, {
         id: crypto.randomUUID(),
@@ -369,7 +370,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     }
   };
 
-  const updateTransaction = async (id: string, data: Partial<Transaction>, balanceDelta?: number) => {
+  const updateTransaction = async (id: string, data: Partial<Transaction>, balanceDelta?: number, _isRetry?: boolean) => {
       if (!user) return;
       
       const original = transactionsData.find(t => t.id === id);
@@ -400,6 +401,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
             setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance - balanceDelta } : a));
         }
         
+        if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'update',
@@ -410,7 +412,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       }
   };
 
-  const updateCategory = async (id: string, data: Partial<Category>) => {
+  const updateCategory = async (id: string, data: Partial<Category>, _isRetry?: boolean) => {
       if (!user) return;
       
       const originalMeta = categoriesMetadata.find(c => c.id === id);
@@ -472,6 +474,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         if (data.name || data.color || data.hex) {
           setCategoriesMetadata(prev => prev.map(c => c.id === id ? originalMeta : c));
         }
+        if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'update',
@@ -482,7 +485,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       }
   };
 
-  const addCategory = async (data: Omit<Category, 'id' | 'activity' | 'available' | 'spent'>) => {
+  const addCategory = async (data: Omit<Category, 'id' | 'activity' | 'available' | 'spent'>, _isRetry?: boolean) => {
       if (!user) return;
 
       const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
@@ -534,6 +537,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         // Rollback
         setCategoriesMetadata(prev => prev.filter(c => c.id !== catId));
         setAllocationsData(prev => prev.filter(a => a.categoryId !== catId));
+        if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'add',
@@ -544,7 +548,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       }
   };
 
-  const deleteCategory = async (id: string) => {
+  const deleteCategory = async (id: string, _isRetry?: boolean) => {
       if (!user) return;
       
       const originalMeta = categoriesMetadata.find(c => c.id === id);
@@ -573,6 +577,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         // Rollback
         setCategoriesMetadata(prev => [...prev, originalMeta]);
         setAllocationsData(prev => [...prev, ...originalAllocs]);
+        if (_isRetry) throw error;
         setPendingMutations(prev => [...prev, {
           id: crypto.randomUUID(),
           type: 'delete',
@@ -598,22 +603,22 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       if (mutation.entity === 'transaction') {
         if (mutation.type === 'add') {
           const { id, ...txData } = mutation.data as any;
-          await addTransaction(txData, id);
+          await addTransaction(txData, id, true);
         }
         if (mutation.type === 'update') {
           const { id, balanceDelta, ...updateData } = mutation.data as Partial<Transaction> & { id: string, balanceDelta?: number };
-          await updateTransaction(id, updateData as Partial<Transaction>, balanceDelta);
+          await updateTransaction(id, updateData as Partial<Transaction>, balanceDelta, true);
         }
       } else if (mutation.entity === 'category') {
         if (mutation.type === 'add') {
-          await addCategory(mutation.data as unknown as Omit<Category, 'id' | 'activity' | 'available' | 'spent'>);
+          await addCategory(mutation.data as unknown as Omit<Category, 'id' | 'activity' | 'available' | 'spent'>, true);
         }
         if (mutation.type === 'update') {
           const { id, ...updateData } = mutation.data as Partial<Category> & { id: string };
-          await updateCategory(id, updateData as Partial<Category>);
+          await updateCategory(id, updateData as Partial<Category>, true);
         }
         if (mutation.type === 'delete') {
-          await deleteCategory(mutation.data.id as string);
+          await deleteCategory(mutation.data.id as string, true);
         }
       }
       
