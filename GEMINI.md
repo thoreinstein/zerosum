@@ -87,6 +87,15 @@ Use **IndexedDB** for storing large binary or base64 assets (like receipt images
 - **Infinite Effect Loops**: Never include a state variable in a dependency array if the effect's callback updates that same state. Use a `ref` overlay instead.
 - **Multi-Tab Persistence**: `failed-precondition` errors occur if multiple tabs attempt to enable persistence simultaneously. Always wrap initialization in a `catch` block.
 
+### 6. Date Handling
+- **Timezone-Safe Month Boundaries**: When filtering by month, avoid `new Date().setMonth()` which depends on the browser's local timezone. Use string manipulation (e.g., `YYYY-MM-01`) or UTC-explicit logic to ensure consistent query ranges across all timezones.
+
+### 7. Pagination & Retries
+- **Preserve Pagination State on Error**: When a fetch fails, do not set `hasMore` to `false`. Keeping it `true` allows the user to click "Retry" and re-attempt the fetch.
+
+### 8. Session Loading State
+- **Explicit Loading Initialization**: Always explicitly set `loading = true` when a user session begins (e.g., inside the `useEffect` triggered by `user`). This prevents the UI from momentarily rendering "Empty" or "Seed Data" states while waiting for the first Firestore snapshot.
+
 ## Search Strategy
 
 - **Keyword Search**: Uses Firestore prefix queries (`>=` and `<= \uf8ff`).
