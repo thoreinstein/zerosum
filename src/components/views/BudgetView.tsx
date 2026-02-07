@@ -144,9 +144,18 @@ export default function BudgetView({ categories, accounts, totalBudgeted, totalS
                 Credit Card Payments
               </div>
               {ccPaymentCategories.map(cat => (
-                 <div key={cat.id}
+                 <div
+                      key={cat.id}
                       className={`group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors rounded-2xl md:rounded-none mb-3 md:mb-0 p-4 md:px-8 md:py-5 border border-slate-100 dark:border-slate-800 md:border-none shadow-sm md:shadow-none bg-white dark:bg-slate-900/50 md:bg-transparent md:grid md:grid-cols-[1fr,120px,120px,120px] md:gap-4 md:items-center`}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedForDetails(cat)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedForDetails(cat);
+                        }
+                      }}
                  >
                     {/* Category Column */}
                     <div className="flex flex-col flex-1 cursor-pointer">
