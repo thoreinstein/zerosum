@@ -15,16 +15,16 @@ This document provides essential context for Gemini CLI interactions within the 
 
 ## Architecture & Structure
 
-- `src/app`: Contains the application pages and Server Actions.
-  - `actions/scanReceipt.ts`: AI-powered logic to extract data from receipt images.
-- `src/components`: UI components organized by responsibility.
-  - `views/`: Main content areas (Budget, Accounts, Transactions, Reports).
-  - `modals/`: Interactive dialogs for creating transactions and categories.
-  - `layout/`: Persistent UI elements like Sidebar and Header.
-- `src/hooks`: Custom React hooks for business logic.
-  - `useFinanceData.ts`: Centralizes Firestore real-time synchronization and data mutations (add/update/delete).
-- `src/context`: `AuthContext.tsx` manages Firebase authentication state.
-- `src/lib`: Initializations for `firebase.ts` (client), `firebase-admin.ts` (server), and `genkit.ts` (AI).
+### Data Fetching strategy
+- **Hybrid Fetching**: To maintain performance as data scales, the app uses a hybrid approach:
+  - **Windowed**: High-volume data (Transactions, Allocations) is strictly windowed by the active month.
+  - **Global (Filtered)**: Critical state items (Uncleared transactions) are fetched globally with a reasonable limit (e.g., 100) to ensure they are always accounted for in budget calculations.
+- **FinanceContext**: Centralizes `selectedMonth` and `refreshTransactions` logic to eliminate prop-drilling.
+
+### Key Components
+- `src/hooks/useFinanceData.ts`: Core data synchronization and recursive budget calculation.
+- `src/hooks/usePaginatedTransactions.ts`: Independent hook for cursor-based transaction list fetching.
+- `src/components/views/`: Main content areas (Budget, Accounts, Transactions, Reports).
 
 ## Key Features
 
@@ -48,21 +48,21 @@ npm run build
 npm run start
 ```
 
-### Firebase Emulators (Optional)
-```bash
-npm run firebase:emulators
-```
-
 ## Development Conventions
 
-- **State Management**: Uses custom hooks (`useFinanceData`) combined with Firestore listeners instead of heavy state libraries.
-- **Mutations**: Use `writeBatch` for atomic operations involving multiple documents (e.g., adding a transaction and updating account balance).
-- **Server Actions**: Preferred for AI processing and sensitive server-side operations.
+- **State Management**: Uses custom hooks (`useFinanceData`) combined with Firestore listeners.
+- **Listener Safety**: 
+  - Never check external state inside an `onSnapshot` callback (closure staleness). Use a dedicated `useEffect` tracking both states for cross-validation or bootstrapping.
+  - Store pagination cursors (`lastDoc`) and lock flags in `useRef` to maintain stable hook identities.
+- **Mutations**: Use `writeBatch` for atomic operations involving multiple documents.
 - **Styling**: Utility-first CSS using Tailwind CSS 4. Follow established patterns in `src/app/globals.css`.
-- **Database Schema**:
-  - `users/{uid}/accounts/{accId}`
-  - `users/{uid}/categories/{catId}`
-  - `users/{uid}/transactions/{txId}`
+
+## Database Schema
+
+- `users/{uid}/accounts/{accId}`
+- `users/{uid}/categories/{catId}`
+- `users/{uid}/transactions/{txId}`
+- `users/{uid}/monthly_allocations/{month_catId}`
 
 ## Architectural Truths & Patterns
 
@@ -90,5 +90,5 @@ Use **IndexedDB** for storing large binary or base64 assets (like receipt images
 ## Search Strategy
 
 - **Keyword Search**: Uses Firestore prefix queries (`>=` and `<= \uf8ff`).
-- **Limitation**: Search is currently case-sensitive due to Firestore range query constraints.
-- **Recommendation**: For case-insensitive search in the future, implement a `payee_lower` field on transaction documents or integrate a dedicated search provider like Algolia.
+- **Range Limitation**: Since Firestore doesn't support multiple range queries on different fields, **date windowing is disabled during active search** to allow for global search.
+- **Limitation**: Search is currently case-sensitive. Implement a `payee_lower` field if case-insensitivity is required.
