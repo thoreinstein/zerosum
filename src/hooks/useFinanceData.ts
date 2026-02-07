@@ -191,6 +191,15 @@ export function useFinanceData(monthOverride?: string) {
     }, 2000);
   }, [addToast]);
 
+  useEffect(() => {
+    return () => {
+      if (errorTimer.current) {
+        clearTimeout(errorTimer.current);
+        errorTimer.current = null;
+      }
+      errorBuffer.current = [];
+    };
+  }, []);
   const hasPendingWrites = useMemo(() => Object.values(syncStatus).some(v => v), [syncStatus]);
   const isSyncing = hasPendingWrites || isSyncingGlobal;
 
