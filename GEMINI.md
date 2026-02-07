@@ -20,9 +20,12 @@ This document provides essential context for Gemini CLI interactions within the 
   - **Month-Scoped Views**: High-volume data (Transactions, Allocations) is filtered by the active month in application logic and UI components rather than via Firestore query constraints.
   - **Global (Limited)**: Critical state items (e.g., uncleared transactions) are fetched or derived globally with reasonable limits (e.g., 100) so they are always accounted for in budget calculations.
 - **FinanceContext**: Centralizes `selectedMonth` and `refreshTransactions` logic to eliminate prop-drilling and drive the month-based filtering of subscribed data.
+- **Windowed Prefetching**: A `useSubscriptionPool` hook in the context manages background listeners for the `next` and `previous` months. This uses a 2-second idle delay to optimize quota usage.
+- **Result Caching**: Calculated budget states (Available, Activity, etc.) are cached in `FinanceContext.budgetCache` to allow instant UI hydration during navigation.
 
 ### Key Components
 - `src/hooks/useFinanceData.ts`: Core data synchronization and recursive budget calculation.
+- `src/hooks/useSubscriptionPool.ts`: Manages background Firestore listeners for adjacent data sets.
 - `src/hooks/usePaginatedTransactions.ts`: Independent hook for cursor-based transaction list fetching.
 - `src/components/views/`: Main content areas (Budget, Accounts, Transactions, Reports).
 
@@ -83,17 +86,22 @@ Always use `initializeFirestore` with `persistentLocalCache` and `persistentMult
 ### 4. Large Asset Caching (IndexedDB)
 Use **IndexedDB** for storing large binary or base64 assets (like receipt images) while offline to avoid `localStorage` 5MB quota limits.
 
-### 5. Known Traps
+### 5. Subscription Pool Pattern
+Centralize background listener management in a "Pool" hook to support windowed fetching. Use an idle delay (debounce) before attaching new listeners to avoid redundant reads during rapid navigation.
+
+### 6. Known Traps
 - **Infinite Effect Loops**: Never include a state variable in a dependency array if the effect's callback updates that same state. Use a `ref` overlay instead.
 - **Multi-Tab Persistence**: `failed-precondition` errors occur if multiple tabs attempt to enable persistence simultaneously. Always wrap initialization in a `catch` block.
+- **Async Cleanup**: Always `clearTimeout` or cancel async operations in hook cleanup. Use the `user` object in dependency arrays to ensure background timers don't trigger state updates after logout.
+- **Multi-Stream Readiness**: When combining multiple Firestore streams, track readiness flags for each individually. Only set a global "synced" status when all required streams have emitted a non-cached snapshot.
 
-### 6. Date Handling
+### 7. Date Handling
 - **Timezone-Safe Month Boundaries**: When filtering by month, avoid `new Date().setMonth()` which depends on the browser's local timezone. Use string manipulation (e.g., `YYYY-MM-01`) or UTC-explicit logic to ensure consistent query ranges across all timezones.
 
-### 7. Pagination & Retries
+### 8. Pagination & Retries
 - **Preserve Pagination State on Error**: When a fetch fails, do not set `hasMore` to `false`. Keeping it `true` allows the user to click "Retry" and re-attempt the fetch.
 
-### 8. Session Loading State
+### 9. Session Loading State
 - **Explicit Loading Initialization**: Always explicitly set `loading = true` when a user session begins (e.g., inside the `useEffect` triggered by `user`). This prevents the UI from momentarily rendering "Empty" or "Seed Data" states while waiting for the first Firestore snapshot.
 
 ## Search Strategy
