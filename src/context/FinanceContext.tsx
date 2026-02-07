@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { useSubscriptionPool, PooledMonthData } from '@/hooks/useSubscriptionPool';
-import { Category } from '@/hooks/useFinanceData';
+import type { Category } from '@/hooks/useFinanceData';
 
 interface FinanceContextType {
   selectedMonth: string;
