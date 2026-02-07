@@ -79,7 +79,7 @@ export interface Transaction {
 
 export function useFinanceData(monthOverride?: string) {
   const { user } = useAuth();
-  const { selectedMonth: contextMonth } = useFinance();
+  const { selectedMonth: contextMonth, pooledData } = useFinance();
   const selectedMonth = monthOverride || contextMonth;
 
   // Optimistic & UI State
@@ -94,6 +94,19 @@ export function useFinanceData(monthOverride?: string) {
   const [allocations, setAllocations] = useState<MonthlyAllocation[]>([]);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   
+  // Merge active data with pooled background data
+  const combinedAllocations = useMemo(() => {
+    const pooled = Object.values(pooledData || {}).flatMap(d => d.allocations || []);
+    const merged = [...allocations, ...pooled];
+    return Array.from(new Map(merged.map(item => [item.id, item])).values());
+  }, [allocations, pooledData]);
+
+  const combinedTransactions = useMemo(() => {
+    const pooled = Object.values(pooledData || {}).flatMap(d => d.transactions || []);
+    const merged = [...allTransactions, ...pooled];
+    return Array.from(new Map(merged.map(item => [item.id, item])).values());
+  }, [allTransactions, pooledData]);
+
   // Computed/Optimistic State
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -122,7 +135,7 @@ export function useFinanceData(monthOverride?: string) {
 
     // 1. Group transactions by month and category
     const activityMap: Record<string, Record<string, number>> = {};
-    allTransactions.forEach(tx => {
+    combinedTransactions.forEach(tx => {
       const month = tx.date.slice(0, 7);
       if (!activityMap[month]) activityMap[month] = {};
       if (!activityMap[month][tx.category]) activityMap[month][tx.category] = 0;
@@ -131,7 +144,7 @@ export function useFinanceData(monthOverride?: string) {
 
     // 2. Group allocations by month and category
     const budgetMap: Record<string, Record<string, number>> = {};
-    allocations.forEach(alloc => {
+    combinedAllocations.forEach(alloc => {
       if (!budgetMap[alloc.month]) budgetMap[alloc.month] = {};
       budgetMap[alloc.month][alloc.categoryId] = alloc.budgeted;
     });
@@ -161,7 +174,7 @@ export function useFinanceData(monthOverride?: string) {
         totalBudgetedToCategories += budgeted;
       });
 
-      const ccTransactions = allTransactions.filter(tx => {
+      const ccTransactions = combinedTransactions.filter(tx => {
           const month = tx.date.slice(0, 7);
           const acc = accounts.find(a => a.id === tx.accountId);
           return month === m && acc?.type === 'Credit Card' && tx.amount < 0;
@@ -221,8 +234,8 @@ export function useFinanceData(monthOverride?: string) {
     });
 
     setCategories(merged);
-    setTransactions(allTransactions); // Keep them in sync for now, though filtered by view usually
-  }, [metadata, allocations, allTransactions, selectedMonth, accounts]);
+    setTransactions(combinedTransactions); 
+  }, [metadata, combinedAllocations, combinedTransactions, selectedMonth, accounts]);
 
   useEffect(() => {
     calculateFinances();
