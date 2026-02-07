@@ -29,7 +29,7 @@ export function useSubscriptionPool(baseMonth: string) {
         monthUnsubs.forEach(u => u());
       });
       unsubs.current = {};
-      setTimeout(() => setPooledData({}), 0);
+      setPooledData({});
       return;
     }
 
