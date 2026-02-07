@@ -77,16 +77,24 @@ export default function Header({ title, subtitle, rtaBalance, selectedMonth, onM
             </p>
           </div>
 
-          <div className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-white dark:border-slate-800 shadow-sm relative group cursor-pointer">
+          <button
+            type="button"
+            onClick={logout}
+            aria-label="Sign out"
+            className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-white dark:border-slate-800 shadow-sm relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
             <img
               alt="User Profile"
               src={user?.photoURL || "https://lh3.googleusercontent.com/aida-public/AB6AXuCQJAyWgraP0W0NVA9Rf7gvjXLfhcL_fMrBFXorVyQd4sbJcqifFS5OX7PtQz4TxGtTeJFpDoy1ECt_8KGywRAilAczS-4fJAFW3cF2gFNLq6_qJ_RuWM4Ufp3UYHph9IffLwQ--ainhsUFFwgY2jdXIuWk2EgfjoVnPnpkhsITL8fvTVn6qXQgtyiMmJvgSuzT3wGPHYoSHdW1x9AQK6aCghMpvhPF52aR7d5DvsgULJryQ5kipT6kjjZoI4f_o1eAPU6PgiQjaWY"}
               className="w-full h-full object-cover"
             />
-             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" onClick={logout}>
-                <LogOut size={16} className="text-white" />
+            <div
+              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+              aria-hidden="true"
+            >
+              <LogOut size={16} className="text-white" />
             </div>
-          </div>
+          </button>
         </div>
       </header>
 
