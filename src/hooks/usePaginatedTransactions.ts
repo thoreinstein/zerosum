@@ -33,13 +33,17 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
   // Internal tracking refs to keep fetchTransactions identity stable
   const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
   const hasMoreRef = useRef(true);
-  const isFetchingRef = useRef(false);
+  const requestSequenceRef = useRef(0);
 
   const fetchTransactions = useCallback(async (isNextPage = false) => {
-    if (!user || isFetchingRef.current) return;
+    if (!user) return;
+    
+    if (isNextPage && !hasMoreRef.current) return;
+
+    const currentSequence = ++requestSequenceRef.current;
+    setError(null);
     
     if (isNextPage) {
-      if (!hasMoreRef.current) return;
       setLoadingMore(true);
     } else {
       setLoading(true);
@@ -47,14 +51,10 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
       lastDocRef.current = null;
       hasMoreRef.current = true;
       setHasMore(true);
-      setError(null);
     }
-
-    isFetchingRef.current = true;
 
     try {
       let q = query(collection(db, 'users', user.uid, 'transactions'));
-      // ... query building logic
 
       // 1. Apply WHERE / ORDER BY constraints FIRST
       if (searchQuery && searchQuery.trim() !== '') {
@@ -75,7 +75,7 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
             q = query(q, where('date', '>=', filterStartDate));
           }
           if (filterEndDate) {
-            q = query(q, where('date', '<', filterEndDate));
+            q = query(q, where('date', '<=', filterEndDate));
           }
         } else {
           // Default to month window
@@ -111,6 +111,9 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
 
       const snapshot = await getDocs(q);
       
+      // Ignore results from stale requests
+      if (currentSequence !== requestSequenceRef.current) return;
+
       const newTransactions = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -127,13 +130,15 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
       hasMoreRef.current = more;
       setHasMore(more);
     } catch (error) {
+      if (currentSequence !== requestSequenceRef.current) return;
       console.error("Error fetching transactions:", error);
       setError(error instanceof Error ? error : new Error('Unknown error fetching transactions'));
       // Keep hasMore as-is so retry is possible
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
-      isFetchingRef.current = false;
+      if (currentSequence === requestSequenceRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate, searchQuery]);
 
