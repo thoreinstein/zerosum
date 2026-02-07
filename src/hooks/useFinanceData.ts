@@ -79,7 +79,12 @@ export interface Transaction {
 
 export function useFinanceData(monthOverride?: string) {
   const { user } = useAuth();
-  const { selectedMonth: contextMonth, pooledData } = useFinance();
+  const { 
+    selectedMonth: contextMonth, 
+    pooledData, 
+    budgetCache, 
+    setBudgetCache 
+  } = useFinance();
   const selectedMonth = monthOverride || contextMonth;
 
   // Optimistic & UI State
@@ -112,6 +117,15 @@ export function useFinanceData(monthOverride?: string) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
   const [loading, setLoading] = useState(true);
+  
+  // Instant hydration from cache
+  useEffect(() => {
+    if (budgetCache[selectedMonth]) {
+      setCategories(budgetCache[selectedMonth]);
+      setLoading(false);
+    }
+  }, [selectedMonth, budgetCache]);
+
   const [syncStatus, setSyncStatus] = useState<Record<string, boolean>>({
     accounts: false,
     categories: false,
@@ -222,20 +236,32 @@ export function useFinanceData(monthOverride?: string) {
       }
     });
 
-    const merged = metadata.map(m => {
-      const stats = monthResults[selectedMonth]?.[m.id] || { budgeted: 0, activity: 0, available: 0 };
-      return {
-        ...m,
-        budgeted: stats.budgeted,
-        activity: stats.activity,
-        available: stats.available,
-        spent: Math.abs(stats.activity)
-      } as Category;
+    months.forEach(m => {
+      const merged = metadata.map(catMeta => {
+        const stats = monthResults[m]?.[catMeta.id] || { budgeted: 0, activity: 0, available: 0 };
+        return {
+          ...catMeta,
+          budgeted: stats.budgeted,
+          activity: stats.activity,
+          available: stats.available,
+          spent: Math.abs(stats.activity)
+        } as Category;
+      });
+
+      // Update global cache
+      setBudgetCache(m, merged);
+      if (m !== selectedMonth) {
+        console.log(`[FinanceData] Background calculated and cached: ${m}`);
+      }
+
+      // If this is the active month, set local state for immediate UI feedback
+      if (m === selectedMonth) {
+        setCategories(merged);
+      }
     });
 
-    setCategories(merged);
     setTransactions(combinedTransactions); 
-  }, [metadata, combinedAllocations, combinedTransactions, selectedMonth, accounts]);
+  }, [metadata, combinedAllocations, combinedTransactions, selectedMonth, accounts, setBudgetCache]);
 
   useEffect(() => {
     calculateFinances();
