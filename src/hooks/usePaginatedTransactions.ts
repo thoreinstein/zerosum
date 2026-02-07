@@ -28,6 +28,7 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   
   // Internal tracking refs to keep fetchTransactions identity stable
   const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -46,6 +47,7 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
       lastDocRef.current = null;
       hasMoreRef.current = true;
       setHasMore(true);
+      setError(null);
     }
 
     isFetchingRef.current = true;
@@ -122,6 +124,7 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
       setHasMore(more);
     } catch (error) {
       console.error("Error fetching transactions:", error);
+      setError(error instanceof Error ? error : new Error('Unknown error fetching transactions'));
       hasMoreRef.current = false;
       setHasMore(false);
     } finally {
@@ -142,6 +145,7 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
     loading,
     loadingMore,
     hasMore,
+    error,
     fetchNextPage: useCallback(() => fetchTransactions(true), [fetchTransactions]),
     refresh: useCallback(() => fetchTransactions(false), [fetchTransactions])
   };
