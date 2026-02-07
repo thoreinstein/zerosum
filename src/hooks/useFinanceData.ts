@@ -539,12 +539,24 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
     try {
       if (mutation.entity === 'transaction') {
-        if (mutation.type === 'add') await addTransaction(mutation.data as unknown as Omit<Transaction, 'id'>);
-        if (mutation.type === 'update') await updateTransaction(mutation.data.id as string, mutation.data as Partial<Transaction>);
+        if (mutation.type === 'add') {
+          await addTransaction(mutation.data as unknown as Omit<Transaction, 'id'>);
+        }
+        if (mutation.type === 'update') {
+          const { id, ...updateData } = mutation.data as Partial<Transaction> & { id: string };
+          await updateTransaction(id, updateData as Partial<Transaction>);
+        }
       } else if (mutation.entity === 'category') {
-        if (mutation.type === 'add') await addCategory(mutation.data as unknown as Omit<Category, 'id' | 'activity' | 'available' | 'spent'>);
-        if (mutation.type === 'update') await updateCategory(mutation.data.id as string, mutation.data as Partial<Category>);
-        if (mutation.type === 'delete') await deleteCategory(mutation.data.id as string);
+        if (mutation.type === 'add') {
+          await addCategory(mutation.data as unknown as Omit<Category, 'id' | 'activity' | 'available' | 'spent'>);
+        }
+        if (mutation.type === 'update') {
+          const { id, ...updateData } = mutation.data as Partial<Category> & { id: string };
+          await updateCategory(id, updateData as Partial<Category>);
+        }
+        if (mutation.type === 'delete') {
+          await deleteCategory(mutation.data.id as string);
+        }
       }
       
       // If success, remove from pending
