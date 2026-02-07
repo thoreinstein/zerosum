@@ -9,9 +9,17 @@ import { useAuth } from '@/context/AuthContext';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from './useFinanceData';
 
-export function usePaginatedTransactions(accountId?: string | null) {
+export interface TransactionFilters {
+  startDate?: string;
+  endDate?: string;
+  status?: 'cleared' | 'uncleared' | 'reconciled' | 'all';
+  accountId?: string | null;
+}
+
+export function usePaginatedTransactions(filters: TransactionFilters = {}) {
   const { user } = useAuth();
   const { selectedMonth } = useFinance();
+  const { accountId, status, startDate: filterStartDate, endDate: filterEndDate } = filters;
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,22 +41,31 @@ export function usePaginatedTransactions(accountId?: string | null) {
     }
 
     try {
-      const startOfMonth = `${selectedMonth}-01`;
-      // End of month is tricky, but let's just use the next month prefix
-      const nextMonthDate = new Date(selectedMonth + '-01');
-      nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-      const endOfMonth = nextMonthDate.toISOString().slice(0, 7) + '-01';
+      // Determine date range
+      let rangeStart = filterStartDate;
+      let rangeEnd = filterEndDate;
+
+      if (!rangeStart || !rangeEnd) {
+        rangeStart = `${selectedMonth}-01`;
+        const nextMonthDate = new Date(selectedMonth + '-01');
+        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+        rangeEnd = nextMonthDate.toISOString().slice(0, 7) + '-01';
+      }
 
       let q = query(
         collection(db, 'users', user.uid, 'transactions'),
-        where('date', '>=', startOfMonth),
-        where('date', '<', endOfMonth),
+        where('date', '>=', rangeStart),
+        where('date', '<', rangeEnd),
         orderBy('date', 'desc'),
         limit(PAGE_SIZE)
       );
 
       if (accountId) {
         q = query(q, where('accountId', '==', accountId));
+      }
+
+      if (status && status !== 'all') {
+        q = query(q, where('status', '==', status));
       }
 
       if (isNextPage && lastDoc) {
@@ -77,13 +94,13 @@ export function usePaginatedTransactions(accountId?: string | null) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [user, selectedMonth, accountId, lastDoc]);
+  }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate, lastDoc]);
 
   // Initial fetch
   useEffect(() => {
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, selectedMonth, accountId]);
+  }, [user, selectedMonth, accountId, status, filterStartDate, filterEndDate]);
 
   return {
     transactions,
