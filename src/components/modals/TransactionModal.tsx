@@ -93,6 +93,10 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
             scanStatus: 'pending'
           }, txId);
           onClose();
+        } else {
+          alert('Offline storage not available.');
+          setIsQueuing(false);
+          return;
         }
       } catch (error) {
         console.error('Failed to queue receipt:', error);
