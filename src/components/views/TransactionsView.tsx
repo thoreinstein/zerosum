@@ -1,6 +1,7 @@
 import { Transaction } from '@/hooks/useFinanceData';
 import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginatedTransactions';
 import TransactionFilterBar from './TransactionFilterBar';
+import { useFinance } from '@/context/FinanceContext';
 import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -12,6 +13,7 @@ interface TransactionsViewProps {
 }
 
 export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
+  const { refreshTransactions } = useFinance();
   const [filters, setFilters] = useState<TransactionFilters>({ accountId: selectedAccountId, status: 'all' });
 
   // Sync accountId filter with prop
@@ -21,6 +23,11 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
 
   const { transactions, loading, loadingMore, hasMore, fetchNextPage } = usePaginatedTransactions(filters);
   const observerTarget = useRef(null);
+
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    await onToggleStatus(id, currentStatus);
+    refreshTransactions();
+  };
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -65,7 +72,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
       {transactions.map(tx => (
         <div
           key={tx.id}
-          onClick={() => onToggleStatus(tx.id, tx.status)}
+          onClick={() => handleToggleStatus(tx.id, tx.status)}
           className="glass-card p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
         >
           <div className="flex items-center gap-3">
