@@ -268,9 +268,8 @@ export function useFinanceData(monthOverride?: string) {
       }
     });
 
-    // Filter transactions for the selected month for the returned state
-    const filteredTx = combinedTransactions.filter(tx => tx.date.slice(0, 7) === selectedMonth);
-    setTransactions(filteredTx); 
+    // Keep full transaction set for downstream background processors (e.g. AI scan queue)
+    setTransactions(combinedTransactions); 
   }, [metadata, combinedAllocations, combinedTransactions, selectedMonth, accounts, setBudgetCache]);
 
   useEffect(() => {
@@ -655,7 +654,7 @@ export function useFinanceData(monthOverride?: string) {
     try {
       if (mutation.entity === 'transaction') {
         if (mutation.type === 'add') {
-          const { id, ...txData } = mutation.data as any;
+          const { id, ...txData } = mutation.data as Omit<Transaction, 'id'> & { id: string };
           await addTransaction(txData, id, true);
         }
         if (mutation.type === 'update') {

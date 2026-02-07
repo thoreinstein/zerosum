@@ -24,7 +24,14 @@ export function useSubscriptionPool(baseMonth: string) {
   const unsubs = useRef<Record<string, Unsubscribe[]>>({});
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      Object.values(unsubs.current).forEach(monthUnsubs => {
+        monthUnsubs.forEach(u => u());
+      });
+      unsubs.current = {};
+      setTimeout(() => setPooledData({}), 0);
+      return;
+    }
 
     // 2-second idle delay before prefetching
     const timer = setTimeout(() => {
@@ -70,7 +77,7 @@ export function useSubscriptionPool(baseMonth: string) {
             orderBy('date', 'desc')
           );
 
-          const handleError = (error: any) => {
+          const handleError = (error: unknown) => {
             console.error(`[SubscriptionPool] Error prefetching ${m}:`, error);
             setPooledData(prev => ({
               ...prev,
@@ -122,6 +129,7 @@ export function useSubscriptionPool(baseMonth: string) {
       Object.values(unsubs.current).forEach(monthUnsubs => {
         monthUnsubs.forEach(u => u());
       });
+      unsubs.current = {};
     };
   }, []);
 
