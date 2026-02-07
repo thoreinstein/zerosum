@@ -86,3 +86,9 @@ Use **IndexedDB** for storing large binary or base64 assets (like receipt images
 ### 5. Known Traps
 - **Infinite Effect Loops**: Never include a state variable in a dependency array if the effect's callback updates that same state. Use a `ref` overlay instead.
 - **Multi-Tab Persistence**: `failed-precondition` errors occur if multiple tabs attempt to enable persistence simultaneously. Always wrap initialization in a `catch` block.
+
+## Search Strategy
+
+- **Keyword Search**: Uses Firestore prefix queries (`>=` and `<= \uf8ff`).
+- **Limitation**: Search is currently case-sensitive due to Firestore range query constraints.
+- **Recommendation**: For case-insensitive search in the future, implement a `payee_lower` field on transaction documents or integrate a dedicated search provider like Algolia.

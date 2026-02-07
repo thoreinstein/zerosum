@@ -5,12 +5,16 @@ interface ReportsViewProps {
   transactions: Transaction[];
   categories: Category[];
   totalSpent: number;
+  selectedMonth: string;
 }
 
-export default function ReportsView({ transactions, categories, totalSpent }: ReportsViewProps) {
+export default function ReportsView({ transactions, categories, totalSpent, selectedMonth }: ReportsViewProps) {
   const reportData = useMemo(() => {
-    const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-    const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0));
+    // Robustness: ensure we only report on the intended month
+    const windowedTransactions = transactions.filter(t => t.date.startsWith(selectedMonth));
+    
+    const income = windowedTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const expenses = Math.abs(windowedTransactions.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0));
     const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
 
     const categorySpending = categories.map(cat => ({
