@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   collection, query, onSnapshot, updateDoc, doc, deleteDoc,
   orderBy, writeBatch, increment, where, getDocs
@@ -248,18 +248,33 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
   }, [categoriesMetadata, transactionsData, allocationsData, accounts, selectedMonth]);
 
   const [pendingMutations, setPendingMutations] = useState<PendingMutation[]>([]);
+  const isInitialized = useRef(false);
 
   // Load pending mutations from localStorage on init
   useEffect(() => {
-    const saved = localStorage.getItem('zerosum_pending_mutations');
-    if (saved) {
-      setPendingMutations(JSON.parse(saved));
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const saved = localStorage.getItem('zerosum_pending_mutations');
+      if (saved) {
+        setPendingMutations(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Failed to load pending mutations from localStorage:', error);
+    } finally {
+      isInitialized.current = true;
     }
   }, []);
 
   // Sync pending mutations to localStorage
   useEffect(() => {
-    localStorage.setItem('zerosum_pending_mutations', JSON.stringify(pendingMutations));
+    if (!isInitialized.current || typeof window === 'undefined') return;
+    
+    try {
+      localStorage.setItem('zerosum_pending_mutations', JSON.stringify(pendingMutations));
+    } catch (error) {
+      console.error('Failed to save pending mutations to localStorage:', error);
+    }
   }, [pendingMutations]);
 
   const addTransaction = async (txData: Omit<Transaction, 'id'>, id?: string) => {
