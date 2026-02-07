@@ -8,25 +8,20 @@ interface HeaderProps {
   rtaBalance: number;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
-  hasPendingWrites?: boolean;
+  isSyncing?: boolean;
+  isOnline?: boolean;
 }
 
-export default function Header({ title, subtitle, rtaBalance, selectedMonth, onMonthChange, hasPendingWrites = false }: HeaderProps) {
+export default function Header({ 
+  title, 
+  subtitle, 
+  rtaBalance, 
+  selectedMonth, 
+  onMonthChange, 
+  isSyncing = false,
+  isOnline = true
+}: HeaderProps) {
   const { logout, user } = useAuth();
-  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -92,7 +87,7 @@ export default function Header({ title, subtitle, rtaBalance, selectedMonth, onM
                 <CloudOff size={14} className="text-amber-500" />
                 <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Offline</span>
               </>
-            ) : hasPendingWrites ? (
+            ) : isSyncing ? (
               <>
                 <CloudSync size={14} className="text-blue-500 animate-pulse" />
                 <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Syncing</span>

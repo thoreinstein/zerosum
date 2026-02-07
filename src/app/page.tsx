@@ -24,7 +24,7 @@ export default function Home() {
   const {
     accounts, categories, transactions, loading: dataLoading,
     addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
-    hasPendingWrites, pendingMutations, retryMutation, toasts, retryingIds
+    isSyncing, isOnline, pendingMutations, retryMutation, toasts, retryingIds
   } = useFinanceData(selectedMonth);
 
   const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
@@ -111,7 +111,8 @@ export default function Home() {
           rtaBalance={rtaBalance}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
-          hasPendingWrites={hasPendingWrites}
+          isSyncing={isSyncing}
+          isOnline={isOnline}
         />
 
         {activeTab === 'budget' && (
