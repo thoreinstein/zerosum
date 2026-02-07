@@ -45,12 +45,6 @@ export default function Home() {
 
   const activeAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
 
-  const filteredTransactions = useMemo(() => {
-    return selectedAccountId
-      ? transactions.filter(t => t.accountId === selectedAccountId)
-      : transactions;
-  }, [transactions, selectedAccountId]);
-
   // Handle dark mode class on body/html
   if (typeof document !== 'undefined') {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -147,7 +141,7 @@ export default function Home() {
 
         {activeTab === 'reports' && (
           <ReportsView 
-            transactions={transactions.filter(t => t.date.startsWith(selectedMonth))} 
+            transactions={transactions} 
             categories={categories} 
             totalSpent={totalSpent} 
           />
