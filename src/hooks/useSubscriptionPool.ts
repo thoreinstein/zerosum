@@ -7,16 +7,19 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { MonthlyAllocation, Transaction } from './useFinanceData';
 
+export interface PooledMonthData {
+  allocations: MonthlyAllocation[];
+  transactions: Transaction[];
+  status: 'loading' | 'synced' | 'error';
+}
+
 /**
  * Manages a pool of Firestore subscriptions for adjacent months.
  * Implements a 2-second idle delay before prefetching to optimize quota usage.
  */
 export function useSubscriptionPool(baseMonth: string) {
   const { user } = useAuth();
-  const [pooledData, setPooledData] = useState<Record<string, { 
-    allocations: MonthlyAllocation[], 
-    transactions: Transaction[] 
-  }>>({});
+  const [pooledData, setPooledData] = useState<Record<string, PooledMonthData>>({});
   
   const unsubs = useRef<Record<string, Unsubscribe[]>>({});
 
@@ -47,14 +50,18 @@ export function useSubscriptionPool(baseMonth: string) {
         if (!unsubs.current[m]) {
           console.log(`[SubscriptionPool] Attaching listeners for ${m}`);
           
+          setPooledData(prev => ({
+            ...prev,
+            [m]: { allocations: [], transactions: [], status: 'loading' }
+          }));
+
           const qAlloc = query(
             collection(db, 'users', user.uid, 'monthly_allocations'),
             where('month', '==', m)
           );
           
-          // Windowed transaction query for the month
           const start = `${m}-01`;
-          const end = `${m}-31`; // Simplified end-of-month for prefix query logic
+          const end = `${m}-31`;
           
           const qTx = query(
             collection(db, 'users', user.uid, 'transactions'),
@@ -63,13 +70,25 @@ export function useSubscriptionPool(baseMonth: string) {
             orderBy('date', 'desc')
           );
 
+          const handleError = (error: any) => {
+            console.error(`[SubscriptionPool] Error prefetching ${m}:`, error);
+            setPooledData(prev => ({
+              ...prev,
+              [m]: { ...prev[m], status: 'error' }
+            }));
+          };
+
           const unsubAlloc = onSnapshot(qAlloc, { includeMetadataChanges: true }, (snap) => {
             const allocations = snap.docs.map(d => ({ id: d.id, ...d.data() } as MonthlyAllocation));
             setPooledData(prev => ({
               ...prev,
-              [m]: { ...prev[m], allocations: allocations || [] }
+              [m]: { 
+                ...prev[m], 
+                allocations: allocations || [],
+                status: prev[m]?.status === 'loading' && snap.metadata.fromCache ? 'loading' : 'synced'
+              }
             }));
-          });
+          }, handleError);
 
           const unsubTx = onSnapshot(qTx, { includeMetadataChanges: true }, (snap) => {
             const transactions = snap.docs.map(d => ({ 
@@ -79,9 +98,13 @@ export function useSubscriptionPool(baseMonth: string) {
             } as Transaction));
             setPooledData(prev => ({
               ...prev,
-              [m]: { ...prev[m], transactions: transactions || [] }
+              [m]: { 
+                ...prev[m], 
+                transactions: transactions || [],
+                status: prev[m]?.status === 'loading' && snap.metadata.fromCache ? 'loading' : 'synced'
+              }
             }));
-          });
+          }, handleError);
 
           unsubs.current[m] = [unsubAlloc, unsubTx];
         }

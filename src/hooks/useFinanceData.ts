@@ -118,13 +118,21 @@ export function useFinanceData(monthOverride?: string) {
   
   const [loading, setLoading] = useState(true);
   
-  // Instant hydration from cache
+  // Instant hydration from cache & Smart Loading State
   useEffect(() => {
-    if (budgetCache[selectedMonth]) {
+    const isCached = !!budgetCache[selectedMonth];
+    const poolStatus = pooledData[selectedMonth]?.status;
+
+    if (isCached) {
       setCategories(budgetCache[selectedMonth]);
       setLoading(false);
+    } else if (poolStatus === 'synced') {
+      // Data is in pool but not yet calculated/cached
+      setLoading(false);
+    } else {
+      setLoading(true);
     }
-  }, [selectedMonth, budgetCache]);
+  }, [selectedMonth, budgetCache, pooledData]);
 
   const [syncStatus, setSyncStatus] = useState<Record<string, boolean>>({
     accounts: false,
@@ -260,7 +268,9 @@ export function useFinanceData(monthOverride?: string) {
       }
     });
 
-    setTransactions(combinedTransactions); 
+    // Filter transactions for the selected month for the returned state
+    const filteredTx = combinedTransactions.filter(tx => tx.date.slice(0, 7) === selectedMonth);
+    setTransactions(filteredTx); 
   }, [metadata, combinedAllocations, combinedTransactions, selectedMonth, accounts, setBudgetCache]);
 
   useEffect(() => {
