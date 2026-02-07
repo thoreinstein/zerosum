@@ -101,18 +101,16 @@ export function useFinanceData(monthOverride?: string) {
   
   // Merge active data with pooled background data
   const combinedAllocations = useMemo(() => {
-    const pooled = Object.values(pooledData || {}).flatMap(d => d.allocations || []);
-    // Ensure that allocations (active/optimistic state) override pooled data on ID collisions
-    const merged = [...pooled, ...allocations];
-    return Array.from(new Map(merged.map(item => [item.id, item])).values());
-  }, [allocations, pooledData]);
+  // Currently, `allocations` and `allTransactions` already represent the full
+  // collections, so we don't merge in pooled background data here to avoid
+  // redundant Firestore listeners and duplicate data.
+  const combinedAllocations = useMemo(() => {
+    return allocations;
+  }, [allocations]);
 
   const combinedTransactions = useMemo(() => {
-    const pooled = Object.values(pooledData || {}).flatMap(d => d.transactions || []);
-    // Ensure that active transactions override pooled data on ID collisions
-    const merged = [...pooled, ...allTransactions];
-    return Array.from(new Map(merged.map(item => [item.id, item])).values());
-  }, [allTransactions, pooledData]);
+    return allTransactions;
+  }, [allTransactions]);
 
   // Computed/Optimistic State
   const [categories, setCategories] = useState<Category[]>([]);
