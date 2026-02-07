@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  collection, query, onSnapshot, updateDoc, doc, deleteDoc,
-  orderBy, writeBatch, increment, where, getDocs, limit
+  collection, query, onSnapshot, doc, deleteDoc,
+  orderBy, writeBatch, increment, where, getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -321,7 +321,9 @@ export function useFinanceData(monthOverride?: string) {
         });
       });
 
-      await batch.commit();
+      await batch.commit().catch(err => {
+        console.error('Failed to bootstrap CC categories:', err);
+      });
     };
 
     bootstrapCC();
