@@ -291,43 +291,40 @@ export function useFinanceData(monthOverride?: string) {
 
   // --- Side Effects ---
 
-  // Ensure Credit Card Payment categories exist
+  // Bootstrap missing CC Payment categories (Fixed logic)
   useEffect(() => {
-    if (loading || metadata.length === 0) return;
-    
-    const ccAccounts = accounts.filter(a => a.type === 'Credit Card');
-    if (ccAccounts.length === 0) return;
+    if (!user || accounts.length === 0 || metadata.length === 0) return;
 
-    const batch = writeBatch(db);
-    let hasUpdates = false;
+    const bootstrapCC = async () => {
+      const ccAccounts = accounts.filter(a => a.type === 'Credit Card');
+      const missingCC = ccAccounts.filter(acc => !metadata.find(m => m.linkedAccountId === acc.id));
 
-    ccAccounts.forEach(acc => {
-      const paymentCat = metadata.find(c => c.isCcPayment && c.linkedAccountId === acc.id);
-      if (!paymentCat) {
-        hasUpdates = true;
-        const newCatRef = doc(collection(db, 'users', user!.uid, 'categories'));
-        batch.set(newCatRef, {
-          name: `Credit Card Payment: ${acc.name}`,
-          color: 'bg-slate-400', 
+      if (missingCC.length === 0) return;
+
+      const batch = writeBatch(db);
+      missingCC.forEach((ccAcc) => {
+        const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
+        batch.set(metaRef, {
+          name: `Payment: ${ccAcc.name}`,
+          color: 'bg-slate-400',
           hex: '#94a3b8',
           isCcPayment: true,
-          linkedAccountId: acc.id
+          linkedAccountId: ccAcc.id
         });
-        
-        const allocId = `${selectedMonth}_${newCatRef.id}`;
-        const allocRef = doc(db, 'users', user!.uid, 'monthly_allocations', allocId);
+        const allocId = `${selectedMonth}_${metaRef.id}`;
+        const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
         batch.set(allocRef, {
           month: selectedMonth,
-          categoryId: newCatRef.id,
+          categoryId: metaRef.id,
           budgeted: 0
         });
-      }
-    });
+      });
 
-    if (hasUpdates) {
-      batch.commit().catch(err => console.error('Failed to ensure CC categories', err));
-    }
-  }, [accounts, metadata, user, selectedMonth, loading]);
+      await batch.commit();
+    };
+
+    bootstrapCC();
+  }, [user, accounts, metadata, selectedMonth]);
 
   // Load/Save Pending Mutations
   useEffect(() => {

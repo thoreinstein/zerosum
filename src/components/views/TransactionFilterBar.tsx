@@ -2,11 +2,11 @@
 
 import { TransactionFilters } from '@/hooks/usePaginatedTransactions';
 import { Filter, Calendar, X, Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
 interface TransactionFilterBarProps {
   filters: TransactionFilters;
-  setFilters: (filters: TransactionFilters) => void;
+  setFilters: Dispatch<SetStateAction<TransactionFilters>>;
 }
 
 export default function TransactionFilterBar({ filters, setFilters }: TransactionFilterBarProps) {
@@ -14,10 +14,10 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setFilters({ ...filters, searchQuery: localSearch });
+      setFilters(prev => ({ ...prev, searchQuery: localSearch }));
     }, 400);
     return () => clearTimeout(timer);
-  }, [localSearch]);
+  }, [localSearch, setFilters]);
 
   // Sync local search when filters are cleared externally
   useEffect(() => {
@@ -25,12 +25,12 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
   }, [filters.searchQuery]);
 
   const handleStatusChange = (status: TransactionFilters['status']) => {
-    setFilters({ ...filters, status });
+    setFilters(prev => ({ ...prev, status }));
   };
 
   const clearFilters = () => {
     setLocalSearch('');
-    setFilters({ accountId: filters.accountId, status: 'all' });
+    setFilters(prev => ({ accountId: prev.accountId, status: 'all' }));
   };
 
   const hasActiveFilters = !!(filters.status && filters.status !== 'all') || !!filters.startDate || !!filters.endDate || !!filters.searchQuery;
@@ -95,7 +95,7 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
           <input 
             type="date" 
             value={filters.startDate || ''}
-            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
           />
         </div>
@@ -105,7 +105,7 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
           <input 
             type="date" 
             value={filters.endDate || ''}
-            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
           />
         </div>
