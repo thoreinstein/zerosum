@@ -25,6 +25,9 @@ export interface Category {
   isRta?: boolean;
   isCcPayment?: boolean;
   linkedAccountId?: string;
+  targetType?: 'monthly' | 'balance' | 'balance_by_date';
+  targetAmount?: number;
+  targetDate?: string;
 }
 
 export interface CategoryMetadata {
@@ -35,6 +38,9 @@ export interface CategoryMetadata {
   isRta?: boolean;
   isCcPayment?: boolean;
   linkedAccountId?: string;
+  targetType?: 'monthly' | 'balance' | 'balance_by_date';
+  targetAmount?: number;
+  targetDate?: string;
 }
 
 export interface MonthlyAllocation {
@@ -269,7 +275,8 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       const cat = categories.find(c => c.id === id);
       if (!cat) return;
 
-      if (data.name || data.color || data.hex) {
+      // Update metadata if name/color/targets changed
+      if (data.name || data.color || data.hex || data.targetType !== undefined || data.targetAmount !== undefined || data.targetDate !== undefined) {
           if (cat.isRta && data.name) {
               alert('Cannot rename the Ready to Assign category.');
               return;
@@ -279,6 +286,9 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           if (data.name) metaUpdate.name = data.name;
           if (data.color) metaUpdate.color = data.color;
           if (data.hex) metaUpdate.hex = data.hex;
+          if (data.targetType !== undefined) metaUpdate.targetType = data.targetType;
+          if (data.targetAmount !== undefined) metaUpdate.targetAmount = data.targetAmount;
+          if (data.targetDate !== undefined) metaUpdate.targetDate = data.targetDate;
           batch.update(metaRef, metaUpdate);
       }
 
@@ -295,7 +305,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       await batch.commit();
   };
 
-  const addCategory = async (data: Omit<Category, 'id' | 'activity' | 'available'>) => {
+  const addCategory = async (data: Omit<Category, 'id' | 'activity' | 'available' | 'spent'>) => {
       if (!user) return;
       const batch = writeBatch(db);
       
@@ -304,7 +314,10 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           name: data.name,
           color: data.color,
           hex: data.hex,
-          isRta: data.isRta || false
+          isRta: data.isRta || false,
+          targetType: data.targetType || null,
+          targetAmount: data.targetAmount || null,
+          targetDate: data.targetDate || null
       });
 
       const allocId = `${selectedMonth}_${metaRef.id}`;
