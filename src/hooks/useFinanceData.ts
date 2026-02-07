@@ -23,6 +23,8 @@ export interface Category {
   color: string;
   hex: string;
   isRta?: boolean;
+  isCcPayment?: boolean;
+  linkedAccountId?: string;
 }
 
 export interface CategoryMetadata {
@@ -31,6 +33,8 @@ export interface CategoryMetadata {
   color: string;
   hex: string;
   isRta?: boolean;
+  isCcPayment?: boolean;
+  linkedAccountId?: string;
 }
 
 export interface MonthlyAllocation {
@@ -67,10 +71,10 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
 
     const qAccounts = query(collection(db, 'users', user.uid, 'accounts'));
     const qCategories = query(collection(db, 'users', user.uid, 'categories'));
-    // Fetch all months to support rollover. For larger datasets, this should be optimized.
     const qMonthly = query(collection(db, 'users', user.uid, 'monthly_allocations'));
     const qTransactions = query(collection(db, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
 
+    let currentAccounts: Account[] = [];
     let metadata: CategoryMetadata[] = [];
     let allAllocations: MonthlyAllocation[] = [];
     let allTransactions: Transaction[] = [];
@@ -95,35 +99,66 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
       });
 
       // 3. Recursive Available Calculation
-      // Find the range of months to calculate
       const months = Array.from(new Set([
         ...Object.keys(activityMap),
         ...Object.keys(budgetMap),
         selectedMonth
       ])).sort();
 
-      const runningAvailable: Record<string, number> = {}; // categoryId -> amount
+      const runningAvailable: Record<string, number> = {};
       const monthResults: Record<string, Record<string, { budgeted: number, activity: number, available: number }>> = {};
 
       months.forEach(m => {
         monthResults[m] = {};
         let totalBudgetedToCategories = 0;
         
-        // Calculate non-RTA categories first
         metadata.forEach(cat => {
-          if (cat.isRta) return;
+          if (cat.isRta || cat.isCcPayment) return;
           const budgeted = budgetMap[m]?.[cat.id] || 0;
           const activity = activityMap[m]?.[cat.name] || 0;
           const prevAvailable = runningAvailable[cat.id] || 0;
           
           const available = prevAvailable + budgeted + activity;
-          runningAvailable[cat.id] = available;
-          totalBudgetedToCategories += budgeted;
-
           monthResults[m][cat.id] = { budgeted, activity, available };
+          totalBudgetedToCategories += budgeted;
         });
 
-        // Calculate RTA
+        const ccTransactions = allTransactions.filter(tx => {
+            const month = tx.date.slice(0, 7);
+            const acc = currentAccounts.find(a => a.id === tx.accountId);
+            return month === m && acc?.type === 'Credit Card' && tx.amount < 0;
+        });
+
+        ccTransactions.forEach(tx => {
+            const catMeta = metadata.find(c => c.name === tx.category);
+            const ccPaymentMeta = metadata.find(c => c.isCcPayment && c.linkedAccountId === tx.accountId);
+            
+            if (catMeta && ccPaymentMeta && !catMeta.isRta) {
+                const currentAvailable = monthResults[m][catMeta.id].available;
+                const shiftAmount = Math.min(Math.max(0, currentAvailable + Math.abs(tx.amount)), Math.abs(tx.amount));
+                
+                if (shiftAmount > 0) {
+                    monthResults[m][catMeta.id].available -= shiftAmount;
+                    if (!monthResults[m][ccPaymentMeta.id]) {
+                        monthResults[m][ccPaymentMeta.id] = { budgeted: budgetMap[m]?.[ccPaymentMeta.id] || 0, activity: 0, available: runningAvailable[ccPaymentMeta.id] || 0 };
+                    }
+                    monthResults[m][ccPaymentMeta.id].available += shiftAmount;
+                }
+            }
+        });
+
+        metadata.forEach(cat => {
+            if (cat.isRta) return;
+            if (cat.isCcPayment && !monthResults[m][cat.id]) {
+                const budgeted = budgetMap[m]?.[cat.id] || 0;
+                const activity = activityMap[m]?.[cat.name] || 0;
+                const prevAvailable = runningAvailable[cat.id] || 0;
+                monthResults[m][cat.id] = { budgeted, activity, available: prevAvailable + budgeted + activity };
+                totalBudgetedToCategories += budgeted;
+            }
+            runningAvailable[cat.id] = monthResults[m][cat.id].available;
+        });
+
         const rtaMetadata = metadata.find(c => c.isRta);
         if (rtaMetadata) {
             const income = activityMap[m]?.[rtaMetadata.name] || 0;
@@ -134,7 +169,6 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
         }
       });
 
-      // 4. Map to current categories state
       const merged = metadata.map(m => {
         const stats = monthResults[selectedMonth]?.[m.id] || { budgeted: 0, activity: 0, available: 0 };
         return {
@@ -142,7 +176,7 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
           budgeted: stats.budgeted,
           activity: stats.activity,
           available: stats.available,
-          spent: Math.abs(stats.activity) // For UI legacy
+          spent: Math.abs(stats.activity)
         } as Category;
       });
 
@@ -150,7 +184,31 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     };
 
     const unsubAccounts = onSnapshot(qAccounts, (snapshot) => {
-      setAccounts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account)));
+      currentAccounts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account));
+      setAccounts(currentAccounts);
+
+      currentAccounts.filter(a => a.type === 'Credit Card').forEach(async (ccAcc) => {
+          if (metadata.length > 0 && !metadata.find(m => m.linkedAccountId === ccAcc.id)) {
+              const metaRef = doc(collection(db, 'users', user.uid, 'categories'));
+              const batch = writeBatch(db);
+              batch.set(metaRef, {
+                  name: `Payment: ${ccAcc.name}`,
+                  color: 'bg-slate-400',
+                  hex: '#94a3b8',
+                  isCcPayment: true,
+                  linkedAccountId: ccAcc.id
+              });
+              const allocId = `${selectedMonth}_${metaRef.id}`;
+              const allocRef = doc(db, 'users', user.uid, 'monthly_allocations', allocId);
+              batch.set(allocRef, {
+                  month: selectedMonth,
+                  categoryId: metaRef.id,
+                  budgeted: 0
+              });
+              await batch.commit();
+          }
+      });
+      calculateFinances();
     });
 
     const unsubCategories = onSnapshot(qCategories, (snapshot) => {
@@ -186,6 +244,16 @@ export function useFinanceData(selectedMonth: string = new Date().toISOString().
     const batch = writeBatch(db);
     batch.set(txRef, txData);
     batch.update(accRef, { balance: increment(txData.amount) });
+
+    // Handle Transfer Logic for CC Payments
+    const ccPaymentCategory = categories.find(c => c.name === txData.category && c.isCcPayment);
+    if (ccPaymentCategory?.linkedAccountId) {
+        const linkedAccRef = doc(db, 'users', user.uid, 'accounts', ccPaymentCategory.linkedAccountId);
+        // If we are paying the CC from checking, amount is negative in checking, 
+        // so we add the absolute value to the CC balance (bringing it closer to zero).
+        batch.update(linkedAccRef, { balance: increment(Math.abs(txData.amount)) });
+    }
+
     await batch.commit();
   };
 

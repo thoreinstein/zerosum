@@ -116,6 +116,7 @@ export default function Home() {
         {activeTab === 'budget' && (
           <BudgetView
             categories={categories}
+            accounts={accounts}
             totalBudgeted={totalBudgeted}
             totalSpent={totalSpent}
             updateCategory={updateCategory}
@@ -139,7 +140,11 @@ export default function Home() {
         )}
 
         {activeTab === 'reports' && (
-          <ReportsView transactions={transactions} categories={categories} totalSpent={totalSpent} />
+          <ReportsView 
+            transactions={transactions.filter(t => t.date.startsWith(selectedMonth))} 
+            categories={categories} 
+            totalSpent={totalSpent} 
+          />
         )}
 
         <button

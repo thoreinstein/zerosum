@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Category } from '@/hooks/useFinanceData';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Category, Account } from '@/hooks/useFinanceData';
+import { Plus, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import CategoryModal from '../modals/CategoryModal';
 
 interface BudgetViewProps {
   categories: Category[];
+  accounts: Account[];
   totalBudgeted: number;
   totalSpent: number;
   updateCategory: (id: string, data: Partial<Category>) => void;
@@ -12,9 +13,17 @@ interface BudgetViewProps {
   addCategory: (data: Omit<Category, 'id' | 'activity' | 'available'>) => void;
 }
 
-export default function BudgetView({ categories, totalBudgeted, totalSpent, updateCategory, deleteCategory, addCategory }: BudgetViewProps) {
+export default function BudgetView({ categories, accounts, totalBudgeted, totalSpent, updateCategory, deleteCategory, addCategory }: BudgetViewProps) {
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
+  const ccPaymentCategories = useMemo(() => {
+      return categories.filter(c => c.isCcPayment).map(cat => {
+          const account = accounts.find(a => a.id === cat.linkedAccountId);
+          const isUnderfunded = cat.available < Math.abs(account?.balance || 0);
+          return { ...cat, account, isUnderfunded };
+      });
+  }, [categories, accounts]);
 
   const handleEdit = (cat: Category) => {
     setEditingCategory(cat);
@@ -65,7 +74,80 @@ export default function BudgetView({ categories, totalBudgeted, totalSpent, upda
         </div>
 
         <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-          {categories.map(cat => (
+          {/* CC Payments Group */}
+          {ccPaymentCategories.length > 0 && (
+            <>
+              <div className="px-4 py-2 bg-slate-50/30 dark:bg-slate-800/10 text-[9px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                Credit Card Payments
+              </div>
+              {ccPaymentCategories.map(cat => (
+                <div key={cat.id} className={`p-4 flex flex-col gap-3 group ${cat.isUnderfunded ? 'bg-amber-50/30 dark:bg-amber-900/5' : 'bg-slate-50/20 dark:bg-slate-800/5'}`}>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.hex }}></div>
+                      <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{cat.name}</span>
+                      {cat.isUnderfunded && (
+                          <div className="group/tip relative flex items-center">
+                              <AlertCircle size={14} className="text-amber-500" />
+                              <div className="absolute left-6 w-48 p-2 bg-slate-900 text-white text-[9px] rounded shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-10 pointer-events-none">
+                                  Your payment category doesn&apos;t cover your full account balance. Budget more here to pay down debt.
+                              </div>
+                          </div>
+                      )}
+                    </div>
+                    
+                    {/* Desktop View Row */}
+                    <div className="hidden md:grid grid-cols-[100px,100px,100px] gap-4 items-center">
+                        <input
+                            type="number"
+                            value={cat.budgeted}
+                            onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                updateCategory(cat.id, { budgeted: val });
+                            }}
+                            className="w-full text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
+                        />
+                        <span className={`text-[11px] font-bold text-right ${cat.activity < 0 ? 'text-slate-400' : 'text-emerald-500'}`}>
+                            {cat.activity !== 0 ? (cat.activity > 0 ? `+${cat.activity.toLocaleString()}` : `-$${Math.abs(cat.activity).toLocaleString()}`) : '$0'}
+                        </span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-lg text-right ${cat.available > 0 ? (cat.isUnderfunded ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600') : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                            ${cat.available.toLocaleString()}
+                        </span>
+                    </div>
+
+                    {/* Mobile View Status Pill */}
+                    <div className="md:hidden">
+                        <span className={`text-xs font-bold px-2 py-1 rounded-lg ${cat.available > 0 ? (cat.isUnderfunded ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600') : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                            ${cat.available.toLocaleString()}
+                        </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full opacity-60 transition-all duration-500" style={{ backgroundColor: cat.hex, width: `${cat.budgeted > 0 ? Math.min((Math.abs(cat.activity) / cat.budgeted) * 100, 100) : 0}%` }}></div>
+                    </div>
+                    <div className="md:hidden">
+                        <input
+                            type="number"
+                            value={cat.budgeted}
+                            onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            updateCategory(cat.id, { budgeted: val });
+                            }}
+                            className="w-16 text-right bg-transparent border-none p-0 focus:ring-0 text-[11px] font-bold text-slate-500"
+                        />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div className="px-4 py-2 bg-slate-50/30 dark:bg-slate-800/10 text-[9px] font-bold uppercase tracking-widest text-slate-400 border-y border-slate-100 dark:border-slate-800">
+                Main Categories
+              </div>
+            </>
+          )}
+
+          {categories.filter(c => !c.isCcPayment && !c.isRta).map(cat => (
             <div key={cat.id} className="p-4 flex flex-col gap-3 group">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">

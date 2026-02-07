@@ -15,12 +15,18 @@ export default function Header({ title, subtitle, rtaBalance, selectedMonth, onM
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month - 2);
+    const minDate = new Date();
+    minDate.setMonth(minDate.getMonth() - 12); // Restrict to 1 year back for now
+    if (date < minDate) return;
     onMonthChange(date.toISOString().slice(0, 7));
   };
 
   const handleNextMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month);
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 1); // Restrict to current month + 1
+    if (date > maxDate) return;
     onMonthChange(date.toISOString().slice(0, 7));
   };
 
