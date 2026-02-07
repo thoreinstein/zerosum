@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { MonthlyAllocation, Transaction } from './useFinanceData';
+import type { MonthlyAllocation, Transaction } from './useFinanceData';
 
 export interface PooledMonthData {
   allocations: MonthlyAllocation[];
