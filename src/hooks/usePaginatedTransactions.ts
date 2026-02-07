@@ -80,9 +80,13 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
         } else {
           // Default to month window
           const startOfMonth = `${selectedMonth}-01`;
-          const nextMonthDate = new Date(selectedMonth + '-01');
-          nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-          const endOfMonth = nextMonthDate.toISOString().slice(0, 7) + '-01';
+          let [year, month] = selectedMonth.split('-').map(Number);
+          month++;
+          if (month > 12) {
+            month = 1;
+            year++;
+          }
+          const endOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
           
           q = query(q, where('date', '>=', startOfMonth), where('date', '<', endOfMonth));
         }
@@ -125,8 +129,7 @@ export function usePaginatedTransactions(filters: TransactionFilters = {}) {
     } catch (error) {
       console.error("Error fetching transactions:", error);
       setError(error instanceof Error ? error : new Error('Unknown error fetching transactions'));
-      hasMoreRef.current = false;
-      setHasMore(false);
+      // Keep hasMore as-is so retry is possible
     } finally {
       setLoading(false);
       setLoadingMore(false);
