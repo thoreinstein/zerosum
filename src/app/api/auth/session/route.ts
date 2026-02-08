@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  (await cookies()).delete('session');
-  return NextResponse.json({ status: 'success' }, { status: 200 });
+  const response = NextResponse.json({ status: 'success' }, { status: 200 });
+  response.cookies.delete('session');
+  return response;
 }

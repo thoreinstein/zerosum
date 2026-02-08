@@ -7,13 +7,15 @@ function formatPrivateKey(key: string) {
 export function getFirebaseAdmin() {
   if (!admin.apps.length) {
     if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !process.env.FIREBASE_ADMIN_PRIVATE_KEY) {
-       // Allow build to pass if env vars are missing, but runtime will fail if accessed
-       if (process.env.NODE_ENV === 'production' && typeof window === 'undefined') {
-          // We are likely in build or runtime. 
-          // If we throw here, build fails if it tries to execute this path.
-          // But 'next build' generates static pages. 
-       }
-       throw new Error('Firebase Admin environment variables missing');
+      const missingVars = [
+        'FIREBASE_ADMIN_PROJECT_ID',
+        'FIREBASE_ADMIN_CLIENT_EMAIL',
+        'FIREBASE_ADMIN_PRIVATE_KEY',
+      ].filter((name) => !process.env[name as keyof NodeJS.ProcessEnv]);
+
+      throw new Error(
+        `Firebase Admin environment variables missing: ${missingVars.join(', ')}`,
+      );
     }
 
     try {

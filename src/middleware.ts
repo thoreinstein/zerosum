@@ -90,10 +90,10 @@ async function verifySessionCookie(cookie: string) {
     }
 
     const publicKey = publicKeys[kid];
-    // Convert PEM to crypto key
-    const ecKey = await jose.importX509(publicKey, 'RS256');
+    // Convert PEM to crypto key (RSA, used with RS256)
+    const rsaKey = await jose.importX509(publicKey, 'RS256');
 
-    const { payload } = await jose.jwtVerify(cookie, ecKey, {
+    const { payload } = await jose.jwtVerify(cookie, rsaKey, {
       issuer: `https://session.firebase.google.com/${PROJECT_ID}`,
       audience: PROJECT_ID,
     });
