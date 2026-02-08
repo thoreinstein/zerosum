@@ -129,6 +129,7 @@ export default function Header({
               alt=""
               src={user?.photoURL || "https://lh3.googleusercontent.com/aida-public/AB6AXuCQJAyWgraP0W0NVA9Rf7gvjXLfhcL_fMrBFXorVyQd4sbJcqifFS5OX7PtQz4TxGtTeJFpDoy1ECt_8KGywRAilAczS-4fJAFW3cF2gFNLq6_qJ_RuWM4Ufp3UYHph9IffLwQ--ainhsUFFwgY2jdXIuWk2EgfjoVnPnpkhsITL8fvTVn6qXQgtyiMmJvgSuzT3wGPHYoSHdW1x9AQK6aCghMpvhPF52aR7d5DvsgULJryQ5kipT6kjjZoI4f_o1eAPU6PgiQjaWY"}
               fill
+              sizes="40px"
               className="object-cover"
             />
             <div
