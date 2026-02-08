@@ -10,7 +10,7 @@ export default function AccountsPage() {
 
   const handleAccountSelect = (id: string | null) => {
     if (id) {
-      router.push(`/transactions?accountId=${id}`);
+      router.push(`/transactions?accountId=${encodeURIComponent(id)}`);
     } else {
       router.push('/transactions');
     }
