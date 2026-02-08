@@ -40,18 +40,24 @@ If the receipt is crumpled, use context to reconstruct broken lines.` },
       output: { schema: ReceiptSchema },
     });
 
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Scan timed out')), SCAN_TIMEOUT_MS);
+      timeoutId = setTimeout(() => reject(new Error('Scan timed out')), SCAN_TIMEOUT_MS);
     });
 
-    const response = await Promise.race([generatePromise, timeoutPromise]);
-    const data = response.output;
+    try {
+      const response = await Promise.race([generatePromise, timeoutPromise]);
+      const data = response.output;
 
-    if (!data) {
-      throw new Error("No data extracted");
+      if (!data) {
+        throw new Error("No data extracted");
+      }
+
+      return { success: true, data };
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
-
-    return { success: true, data };
   } catch (error) {
     const isTimeout = error instanceof Error && error.message === 'Scan timed out';
     const scanError = createScanError(

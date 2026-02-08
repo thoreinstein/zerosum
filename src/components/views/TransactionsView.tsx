@@ -95,7 +95,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
                 {tx.scanStatus === 'scanning' && <span className="ml-2 text-blue-500 font-bold uppercase text-[8px]">Scanning...</span>}
                 {tx.scanStatus === 'failed' && (
                   <span className="ml-2 text-red-500 font-bold uppercase text-[8px] flex items-center gap-1 inline-flex">
-                    Scan Failed: {SCAN_ERROR_MESSAGES[tx.scanLastError || ''] || 'Unknown Error'}
+                    Scan Failed: {SCAN_ERROR_MESSAGES[tx.scanLastError || ''] || tx.scanLastError || 'Unknown Error'}
                   </span>
                 )}
               </p>
