@@ -3,6 +3,7 @@
 import { gemini20Flash } from '@genkit-ai/googleai';
 import { z } from 'genkit'; // Import z from genkit to ensure version compatibility
 import { ai } from '@/lib/genkit';
+import { ScanErrorCode, createScanError } from '@/lib/errorUtils';
 
 const ReceiptSchema = z.object({
   payee: z.string().describe('The name of the merchant or payee. Look for logos or bold text at the top.'),
@@ -11,11 +12,13 @@ const ReceiptSchema = z.object({
   category: z.string().optional().describe('The best matching category from the provided list based on the items purchased or the merchant type.'),
 });
 
+const SCAN_TIMEOUT_MS = 25000; // 25 seconds
+
 export async function scanReceipt(base64Image: string, categories: string[] = []) {
   try {
     const categoryList = categories.length > 0 ? categories.join(', ') : 'Dining Out, Groceries, Utilities, Rent, Entertainment';
 
-    const response = await ai.generate({
+    const generatePromise = ai.generate({
       model: gemini20Flash,
       config: {
         temperature: 0,
@@ -37,6 +40,11 @@ If the receipt is crumpled, use context to reconstruct broken lines.` },
       output: { schema: ReceiptSchema },
     });
 
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Scan timed out')), SCAN_TIMEOUT_MS);
+    });
+
+    const response = await Promise.race([generatePromise, timeoutPromise]);
     const data = response.output;
 
     if (!data) {
@@ -45,7 +53,17 @@ If the receipt is crumpled, use context to reconstruct broken lines.` },
 
     return { success: true, data };
   } catch (error) {
-    console.error('Genkit Error:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Failed to process receipt' };
+    const isTimeout = error instanceof Error && error.message === 'Scan timed out';
+    const scanError = createScanError(
+      isTimeout ? ScanErrorCode.TIMEOUT : ScanErrorCode.SERVER_ERROR,
+      error
+    );
+
+    console.error('Scan Error:', {
+      code: scanError.code,
+      message: scanError.message
+    });
+
+    return { success: false, error: scanError };
   }
 }

@@ -130,12 +130,12 @@ export function useAIQueue(
 
             await deleteImage(tx.id);
           } else {
-            console.error('Scan failed:', result.error);
+            const errorInfo = result.error as { code: string, message: string };
             const nextRetry = (tx.scanRetryCount || 0) + 1;
             await updateTransaction(tx.id, { 
               scanStatus: 'failed', 
               scanRetryCount: nextRetry,
-              scanLastError: result.error || 'Unknown error'
+              scanLastError: errorInfo?.code || 'SCAN_SERVER_ERROR'
             });
           }
         } catch (error) {
@@ -144,7 +144,7 @@ export function useAIQueue(
           await updateTransaction(tx.id, { 
               scanStatus: 'failed', 
               scanRetryCount: nextRetry,
-              scanLastError: String(error)
+              scanLastError: 'SCAN_SERVER_ERROR'
           });
         }
       }

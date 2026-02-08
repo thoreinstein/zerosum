@@ -1,8 +1,17 @@
 import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginatedTransactions';
 import TransactionFilterBar from './TransactionFilterBar';
 import { useFinance } from '@/context/FinanceContext';
-import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw, Info } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { ScanErrorCode } from '@/lib/errorUtils';
+
+const SCAN_ERROR_MESSAGES: Record<string, string> = {
+  [ScanErrorCode.TIMEOUT]: 'The scan took too long.',
+  [ScanErrorCode.UNSCANNABLE]: 'Could not read receipt.',
+  [ScanErrorCode.NOT_A_RECEIPT]: 'Not a valid receipt.',
+  [ScanErrorCode.SERVER_ERROR]: 'AI service error.',
+  [ScanErrorCode.IMAGE_NOT_FOUND]: 'Receipt image lost.',
+};
 
 interface TransactionsViewProps {
   selectedAccountId: string | null;
@@ -84,7 +93,11 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
                 {tx.date} • {tx.category}
                 {tx.scanStatus === 'pending' && <span className="ml-2 text-amber-500 font-bold uppercase text-[8px]">Queued for Scan</span>}
                 {tx.scanStatus === 'scanning' && <span className="ml-2 text-blue-500 font-bold uppercase text-[8px]">Scanning...</span>}
-                {tx.scanStatus === 'failed' && <span className="ml-2 text-red-500 font-bold uppercase text-[8px]">Scan Failed</span>}
+                {tx.scanStatus === 'failed' && (
+                  <span className="ml-2 text-red-500 font-bold uppercase text-[8px] flex items-center gap-1 inline-flex">
+                    Scan Failed: {SCAN_ERROR_MESSAGES[tx.scanLastError || ''] || 'Unknown Error'}
+                  </span>
+                )}
               </p>
             </div>
           </div>

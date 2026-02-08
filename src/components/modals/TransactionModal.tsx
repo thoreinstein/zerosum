@@ -5,6 +5,15 @@ import { Camera, CameraOff, Sparkles, X, Clock } from 'lucide-react';
 import { doc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { ScanErrorCode, ScanErrorResponse } from '@/lib/errorUtils';
+
+const ERROR_MESSAGES: Record<string, string> = {
+  [ScanErrorCode.TIMEOUT]: 'The scan took too long. Please try again with better lighting.',
+  [ScanErrorCode.UNSCANNABLE]: 'We couldn\'t read this receipt. It might be too blurry or faded.',
+  [ScanErrorCode.NOT_A_RECEIPT]: 'This doesn\'t look like a valid receipt.',
+  [ScanErrorCode.SERVER_ERROR]: 'Our AI is having a moment. Please try again later.',
+  [ScanErrorCode.IMAGE_NOT_FOUND]: 'The receipt image was lost. Please take it again.',
+};
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -124,7 +133,9 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
               category: category || prev.category
           }));
       } else {
-          alert('Failed to scan receipt: ' + (result.error || 'Unknown error'));
+          const error = result.error as ScanErrorResponse;
+          const userMessage = ERROR_MESSAGES[error.code] || 'Failed to scan receipt.';
+          alert(userMessage);
       }
     } catch (error) {
       console.error('Scan error:', error);
