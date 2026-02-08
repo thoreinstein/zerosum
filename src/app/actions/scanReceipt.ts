@@ -18,7 +18,7 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
     const response = await ai.generate({
       model: gemini20Flash,
       prompt: [
-        { text: `Extract data from this receipt. Classify the category into one of these: ${categoryList}.` },
+        { text: `Extract: payee, date (YYYY-MM-DD), total amount. Categorize as: ${categoryList}.` },
         { media: { url: `data:image/png;base64,${base64Image}` } }
       ],
       output: { schema: ReceiptSchema },
