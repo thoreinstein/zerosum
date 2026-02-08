@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const {
     accounts, categories, transactions, loading: dataLoading,
     addTransaction, updateTransaction, seedData,
-    isSyncing, isOnline, pendingMutations, retryMutation, toasts, retryingIds
+    isSyncing, isOnline, pendingMutations, retryMutation, toasts, addToast, retryingIds
   } = financeData;
 
   const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
@@ -173,6 +173,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
              await updateTransaction(id, data, balanceDelta);
              refreshTransactions();
           }}
+          showToast={addToast}
         />
       )}
 

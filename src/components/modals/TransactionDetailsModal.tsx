@@ -9,6 +9,7 @@ interface TransactionDetailsModalProps {
   accounts: Account[];
   categories: Category[];
   onSave: (id: string, data: Partial<Transaction>, balanceDelta?: number) => void;
+  showToast?: (message: string) => void;
 }
 
 export default function TransactionDetailsModal({ 
@@ -17,7 +18,8 @@ export default function TransactionDetailsModal({
   transaction, 
   accounts, 
   categories, 
-  onSave 
+  onSave,
+  showToast
 }: TransactionDetailsModalProps) {
   const [formData, setFormData] = useState<Partial<Transaction>>({
     date: transaction.date,
@@ -44,7 +46,7 @@ export default function TransactionDetailsModal({
         const url = new URL(window.location.href);
         url.searchParams.set('txId', transaction.id);
         navigator.clipboard.writeText(url.toString());
-        // Could show toast here but we don't have access to toast function from props easily unless passed
+        showToast?.('Link copied to clipboard');
     }
   };
 

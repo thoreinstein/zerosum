@@ -839,6 +839,7 @@ export function useFinanceData(monthOverride?: string) {
     seedData,
     retryMutation,
     toasts,
+    addToast,
     retryingIds
   };
 }
