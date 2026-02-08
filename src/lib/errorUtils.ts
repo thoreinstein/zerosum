@@ -1,6 +1,6 @@
 /**
- * Sanitizes error messages by removing potentially sensitive information 
- * like base64 image strings, full prompts, or specific PII patterns.
+ * Sanitizes error messages by removing potentially sensitive base64-encoded content,
+ * such as image data URIs and long base64-like sequences.
  */
 export function sanitizeErrorMessage(message: string): string {
   let sanitized = message;
