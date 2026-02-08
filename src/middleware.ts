@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import * as jose from 'jose';
+import { decodeProtectedHeader, importX509, jwtVerify } from 'jose';
 
 // Firebase Session Cookies are JWTs signed by Google
 const GOOGLE_CERT_URL = 'https://www.googleapis.com/identitytoolkit/v3/relyingparty/publicKeys';
@@ -82,7 +82,7 @@ async function verifySessionCookie(cookie: string) {
     // and ideally the signature if we can map the kid.
     
     // Decode without verifying first to get the kid
-    const header = jose.decodeProtectedHeader(cookie);
+    const header = decodeProtectedHeader(cookie);
     const kid = header.kid;
     
     if (!kid || !publicKeys[kid]) {
@@ -91,9 +91,9 @@ async function verifySessionCookie(cookie: string) {
 
     const publicKey = publicKeys[kid];
     // Convert PEM to crypto key (RSA, used with RS256)
-    const rsaKey = await jose.importX509(publicKey, 'RS256');
+    const rsaKey = await importX509(publicKey, 'RS256');
 
-    const { payload } = await jose.jwtVerify(cookie, rsaKey, {
+    const { payload } = await jwtVerify(cookie, rsaKey, {
       issuer: `https://session.firebase.google.com/${PROJECT_ID}`,
       audience: PROJECT_ID,
     });

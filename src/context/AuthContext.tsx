@@ -58,10 +58,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           } else {
             const data = await res.json().catch(() => ({}));
             console.error('Failed to sync session:', data.error || res.statusText);
-            // If session sync fails, we might want to sign out or show a warning
+            // If session sync fails, we must sign out to keep client/server state consistent
+            await signOut(auth);
+            router.push('/login');
           }
         } catch (error) {
           console.error('Network error during session sync:', error);
+          // On network error, we stay in loading or retry? 
+          // For now, let's allow it to fail and set loading to false, 
+          // but the middleware will likely block the user.
         }
       } else {
         // Clear session cookie

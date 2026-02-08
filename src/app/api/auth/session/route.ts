@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ status: 'success' }, { status: 200 });
 
-    // Set cookie
-    (await cookies()).set('session', sessionCookie, {
+    // Set cookie on response
+    response.cookies.set('session', sessionCookie, {
       maxAge: expiresIn / 1000,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

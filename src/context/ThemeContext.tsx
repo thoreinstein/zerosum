@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import { createContext, useContext, useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark';
@@ -21,8 +19,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Check local storage or system preference
     const storedTheme = localStorage.getItem('theme') as Theme | null;
     if (storedTheme) {
+      // Intentional synchronous state update to initialize theme from local storage
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(storedTheme);
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme('dark');
     }
     setMounted(true);
