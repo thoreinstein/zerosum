@@ -26,11 +26,14 @@ try {
   db = initializeFirestore(app, {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
-    })
+    }),
+    ignoreUndefinedProperties: true
   });
 } catch (error) {
   console.warn('Firestore persistence failed, falling back to default:', error);
-  db = initializeFirestore(app, {});
+  db = initializeFirestore(app, {
+    ignoreUndefinedProperties: true
+  });
 }
 
 // Enable Auth persistence
