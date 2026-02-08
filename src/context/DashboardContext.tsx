@@ -10,7 +10,7 @@ const DashboardContext = createContext<DashboardContextType | undefined>(undefin
 export function useDashboardData() {
   const context = useContext(DashboardContext);
   if (!context) {
-    throw new Error('useDashboardData must be used within a DashboardLayout');
+    throw new Error('useDashboardData must be used within a DashboardProvider');
   }
   return context;
 }
