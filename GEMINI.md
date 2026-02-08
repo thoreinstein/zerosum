@@ -94,6 +94,7 @@ Centralize background listener management in a "Pool" hook to support windowed f
 - **Multi-Tab Persistence**: `failed-precondition` errors occur if multiple tabs attempt to enable persistence simultaneously. Always wrap initialization in a `catch` block.
 - **Async Cleanup**: Always `clearTimeout` or cancel async operations in hook cleanup. Use the `user` object in dependency arrays to ensure background timers don't trigger state updates after logout.
 - **Multi-Stream Readiness**: When combining multiple Firestore streams, track readiness flags for each individually. Only set a global "synced" status when all required streams have emitted a non-cached snapshot.
+- **Client-Side Redirects**: Using `redirect()` in a Client Component (`use client`) during render throws an error. Use server components for redirects or `useRouter().push()` in effects.
 
 ### 7. Date Handling
 - **Timezone-Safe Month Boundaries**: When filtering by month, avoid `new Date().setMonth()` which depends on the browser's local timezone. Use string manipulation (e.g., `YYYY-MM-01`) or UTC-explicit logic to ensure consistent query ranges across all timezones.
@@ -116,6 +117,12 @@ Centralize background listener management in a "Pool" hook to support windowed f
 
 ### 13. Session Cookies for SSR
 **Decision**: Use HTTP-only session cookies to bridge Firebase's client-side auth with Next.js Server Components and Middleware. This allows for secure, server-side route protection without relying on client-side headers for initial page loads.
+
+### 14. Layout-as-Provider
+**Decision**: Use a shared `layout.tsx` (Client Component) to hold the primary data subscription (`useFinanceData`) and expose it via a Context Provider (`DashboardContext`) to child route segments. This prevents re-fetching shared data when navigating between sibling routes.
+
+### 15. URL-Driven UI State
+**Pattern**: Lift ephemeral UI state (e.g., "selected account", "active tab", "filters") to URL search params or path segments. This enables deep linking and preserves state on refresh. Derive this state during render or via `useMemo` rather than syncing it to local `useState` via `useEffect`.
 
 ## Search Strategy
 
