@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useFinance } from '@/context/FinanceContext';
+import { useTheme } from '@/context/ThemeContext';
 import { useFinanceData } from '@/hooks/useFinanceData';
 import LoginView from '@/components/views/LoginView';
 import Sidebar from '@/components/layout/Sidebar';
@@ -21,6 +22,7 @@ import { useAIQueue } from '@/hooks/useAIQueue';
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const { selectedMonth, setSelectedMonth, refreshTransactions } = useFinance();
+  const { theme, toggleTheme } = useTheme();
   
   const {
     accounts, categories, transactions, loading: dataLoading,
@@ -33,7 +35,6 @@ export default function Home() {
 
   const [activeTab, setActiveTab] = useState('budget');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
@@ -46,12 +47,6 @@ export default function Home() {
   const totalSpent = useMemo(() => categories.filter(c => !c.isRta).reduce((sum, cat) => sum + Math.abs(cat.activity), 0), [categories]);
 
   const activeAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
-
-  // Handle dark mode class on body/html
-  if (typeof document !== 'undefined') {
-    if (isDarkMode) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-  }
 
   if (authLoading || (user && dataLoading)) {
     return (
@@ -98,12 +93,12 @@ export default function Home() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col md:flex-row font-['Inter'] ${isDarkMode ? 'dark' : ''} bg-[#fcfcfd] dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 transition-colors duration-300`}>
+    <div className={`min-h-screen flex flex-col md:flex-row font-['Inter'] bg-[#fcfcfd] dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 transition-colors duration-300`}>
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(t) => { setActiveTab(t); setSelectedAccountId(null); }}
-        isDarkMode={isDarkMode}
-        toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        isDarkMode={theme === 'dark'}
+        toggleDarkMode={toggleTheme}
         onOpenSettings={() => setShowSettingsModal(true)}
       />
 
