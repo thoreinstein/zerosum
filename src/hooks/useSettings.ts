@@ -13,7 +13,7 @@ export function useSettings() {
     try {
       // 1. Attempt to wait for pending writes (5s timeout)
       const waitPromise = waitForPendingWrites(db);
-      let timeoutId: ReturnType<typeof setTimeout>;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(
           () => reject(new Error('Timeout waiting for pending writes')),
