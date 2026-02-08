@@ -134,7 +134,7 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
           }));
       } else {
           const error = result.error as ScanErrorResponse;
-          const userMessage = ERROR_MESSAGES[error.code] || 'Failed to scan receipt.';
+          const userMessage = ERROR_MESSAGES[error.code] || error.message || 'Failed to scan receipt.';
           alert(userMessage);
       }
     } catch (error) {
