@@ -11,12 +11,10 @@ interface TransactionFilterBarProps {
 
 export default function TransactionFilterBar({ filters, setFilters }: TransactionFilterBarProps) {
   const [localSearch, setLocalSearch] = useState(filters.searchQuery || '');
-  const [prevSearchQuery, setPrevSearchQuery] = useState(filters.searchQuery);
 
-  if (filters.searchQuery !== prevSearchQuery) {
-    setPrevSearchQuery(filters.searchQuery);
+  useEffect(() => {
     setLocalSearch(filters.searchQuery || '');
-  }
+  }, [filters.searchQuery]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
