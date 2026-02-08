@@ -31,6 +31,7 @@ export function useSubscriptionPool(baseMonth: string) {
         monthUnsubs.forEach(u => u());
       });
       unsubs.current = {};
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPooledData({});
       return;
     }

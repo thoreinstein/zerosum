@@ -13,14 +13,18 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
   const [localSearch, setLocalSearch] = useState(filters.searchQuery || '');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalSearch(filters.searchQuery || '');
   }, [filters.searchQuery]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Only update if the debounced value is different from the prop to avoid loops
-      if (localSearch !== filters.searchQuery) {
-          setFilters(prev => ({ ...prev, searchQuery: localSearch }));
+      // Normalize both sides: treat empty/whitespace as undefined
+      const normalizedLocal = localSearch.trim() || undefined;
+      const normalizedProp = filters.searchQuery?.trim() || undefined;
+
+      if (normalizedLocal !== normalizedProp) {
+          setFilters(prev => ({ ...prev, searchQuery: normalizedLocal }));
       }
     }, 400);
     return () => clearTimeout(timer);
