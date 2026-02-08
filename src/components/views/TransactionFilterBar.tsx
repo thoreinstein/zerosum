@@ -6,7 +6,7 @@ import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
 interface TransactionFilterBarProps {
   filters: TransactionFilters;
-  setFilters: Dispatch<SetStateAction<TransactionFilters>>;
+  setFilters: Dispatch<SetStateAction<Omit<TransactionFilters, 'accountId'>>>;
 }
 
 export default function TransactionFilterBar({ filters, setFilters }: TransactionFilterBarProps) {
@@ -32,7 +32,8 @@ export default function TransactionFilterBar({ filters, setFilters }: Transactio
 
   const clearFilters = () => {
     setLocalSearch('');
-    setFilters(prev => ({ accountId: prev.accountId, status: 'all' }));
+    // We only reset the fields managed by this bar. accountId is derived and managed by the parent.
+    setFilters(prev => ({ ...prev, status: 'all', startDate: undefined, endDate: undefined, searchQuery: undefined }));
   };
 
   const hasActiveFilters = !!(filters.status && filters.status !== 'all') || !!filters.startDate || !!filters.endDate || !!filters.searchQuery;
