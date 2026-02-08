@@ -33,11 +33,7 @@ export default function TransactionDetailsModal({
   const handleSave = () => {
     if (!formData.amount || !transaction) return;
     
-    const oldAmount = transaction.amount;
-    const newAmount = Number(formData.amount);
-    const balanceDelta = newAmount - oldAmount;
-
-    onSave(transaction.id, formData, balanceDelta);
+    onSave(transaction.id, formData);
     onClose();
   };
 

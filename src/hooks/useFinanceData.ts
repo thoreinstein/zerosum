@@ -489,25 +489,46 @@ export function useFinanceData(monthOverride?: string) {
     }
   };
 
-  const updateTransaction = async (id: string, data: Partial<Transaction>, balanceDelta?: number, _isRetry?: boolean) => {
+  const updateTransaction = async (id: string, data: Partial<Transaction>, _isRetry?: boolean) => {
       if (!user) return;
       const original = allTransactions.find(t => t.id === id);
       if (!original) return;
 
+      const newAccountId = data.accountId || original.accountId;
+      const accountChanged = data.accountId && data.accountId !== original.accountId;
+      const amountChanged = data.amount !== undefined && data.amount !== original.amount;
+      const amount = data.amount !== undefined ? data.amount : original.amount;
+
       // Optimistic
       setAllTransactions(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
-      if (balanceDelta && original.accountId) {
-          setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance + balanceDelta } : a));
-      }
+      
+      setAccounts(prev => {
+        let next = [...prev];
+        if (accountChanged) {
+          // Revert old account balance
+          next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance - original.amount } : a);
+          // Update new account balance
+          next = next.map(a => a.id === newAccountId ? { ...a, balance: a.balance + amount } : a);
+        } else if (amountChanged) {
+          const delta = amount - original.amount;
+          next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance + delta } : a);
+        }
+        return next;
+      });
 
       try {
         const batch = writeBatch(db);
         const txRef = doc(db, 'users', user.uid, 'transactions', id);
         batch.update(txRef, data);
         
-        if (balanceDelta && original.accountId) {
+        if (accountChanged) {
+             const oldAccRef = doc(db, 'users', user.uid, 'accounts', original.accountId);
+             const newAccRef = doc(db, 'users', user.uid, 'accounts', newAccountId);
+             batch.update(oldAccRef, { balance: increment(-original.amount) });
+             batch.update(newAccRef, { balance: increment(amount) });
+        } else if (amountChanged) {
              const accRef = doc(db, 'users', user.uid, 'accounts', original.accountId);
-             batch.update(accRef, { balance: increment(balanceDelta) });
+             batch.update(accRef, { balance: increment(amount - original.amount) });
         }
 
         await batch.commit();
@@ -515,9 +536,18 @@ export function useFinanceData(monthOverride?: string) {
         console.error('Failed to update transaction:', error);
         // Rollback
         setAllTransactions(prev => prev.map(t => t.id === id ? original : t));
-        if (balanceDelta && original.accountId) {
-            setAccounts(prev => prev.map(a => a.id === original.accountId ? { ...a, balance: a.balance - balanceDelta } : a));
-        }
+        
+        setAccounts(prev => {
+          let next = [...prev];
+          if (accountChanged) {
+            next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance + original.amount } : a);
+            next = next.map(a => a.id === newAccountId ? { ...a, balance: a.balance - amount } : a);
+          } else if (amountChanged) {
+            const delta = amount - original.amount;
+            next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance - delta } : a);
+          }
+          return next;
+        });
         
         if (_isRetry) {
           bufferError('Failed to retry updating transaction.');
@@ -527,7 +557,7 @@ export function useFinanceData(monthOverride?: string) {
           id: crypto.randomUUID(),
           type: 'update',
           entity: 'transaction',
-          data: { id, ...data, balanceDelta },
+          data: { id, ...data },
           timestamp: Date.now()
         }]);
         bufferError('Update failed. Added to pending updates.');
@@ -732,8 +762,8 @@ export function useFinanceData(monthOverride?: string) {
           await addTransaction(txData, id, true);
         }
         if (mutation.type === 'update') {
-          const { id, balanceDelta, ...updateData } = mutation.data as Partial<Transaction> & { id: string, balanceDelta?: number };
-          await updateTransaction(id, updateData as Partial<Transaction>, balanceDelta, true);
+          const { id, ...updateData } = mutation.data as Partial<Transaction> & { id: string };
+          await updateTransaction(id, updateData as Partial<Transaction>, true);
         }
       } else if (mutation.entity === 'category') {
         if (mutation.type === 'add') {

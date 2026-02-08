@@ -58,8 +58,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname]);
 
   const setActiveTab = (tab: string) => {
-    if (tab === 'budget') router.push('/');
-    else router.push(`/${tab}`);
+    const params = new URLSearchParams(searchParams.toString());
+    const target = tab === 'budget' ? '/' : `/${tab}`;
+    router.push(`${target}?${params.toString()}`);
   };
 
   const [showTransactionModal, setShowTransactionModal] = useState(false);
@@ -169,8 +170,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           transaction={activeTransaction}
           accounts={accounts}
           categories={categories}
-          onSave={async (id, data, balanceDelta) => {
-             await updateTransaction(id, data, balanceDelta);
+          onSave={async (id, data) => {
+             await updateTransaction(id, data);
              refreshTransactions();
           }}
           showToast={addToast}

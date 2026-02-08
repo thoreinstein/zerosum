@@ -10,7 +10,7 @@ const STORE_NAME = 'receipt_images';
 
 export function useAIQueue(
   transactions: Transaction[],
-  updateTransaction: (id: string, data: Partial<Transaction>, balanceDelta?: number) => Promise<void>,
+  updateTransaction: (id: string, data: Partial<Transaction>, _isRetry?: boolean) => Promise<void>,
   categoryNames: string[]
 ) {
   const { user } = useAuth();
@@ -113,7 +113,6 @@ export function useAIQueue(
           if (result.success && result.data) {
             const { payee, amount, date, category } = result.data;
             const finalAmount = amount ? -Math.abs(amount) : 0;
-            const diff = finalAmount - tx.amount;
 
             // 1. Update the transaction via the mutation framework (handles rollback/retry)
             await updateTransaction(tx.id, {
@@ -124,7 +123,7 @@ export function useAIQueue(
               scanStatus: 'completed',
               scanRetryCount: 0,
               scanLastError: null
-            }, diff !== 0 ? diff : undefined);
+            });
 
             await deleteImage(tx.id);
           } else {
