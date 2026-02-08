@@ -1,51 +1,61 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useFinance } from '@/context/FinanceContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useFinanceData } from '@/hooks/useFinanceData';
-import LoginView from '@/components/views/LoginView';
+import { useAIQueue } from '@/hooks/useAIQueue';
+import { DashboardProvider } from '@/context/DashboardContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNav from '@/components/layout/MobileNav';
 import Header from '@/components/layout/Header';
-import BudgetView from '@/components/views/BudgetView';
-import AccountsView from '@/components/views/AccountsView';
-import TransactionsView from '@/components/views/TransactionsView';
-import ReportsView from '@/components/views/ReportsView';
 import TransactionModal from '@/components/modals/TransactionModal';
-import ReconcileModal from '@/components/modals/ReconcileModal';
 import SettingsModal from '@/components/modals/SettingsModal';
+import LoginView from '@/components/views/LoginView';
 import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
-import { useAIQueue } from '@/hooks/useAIQueue';
 
-export default function Home() {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { selectedMonth, setSelectedMonth, refreshTransactions } = useFinance();
   const { theme, toggleTheme } = useTheme();
   
+  const financeData = useFinanceData(selectedMonth);
   const {
     accounts, categories, transactions, loading: dataLoading,
-    addTransaction, updateTransaction, updateCategory, addCategory, deleteCategory, reconcileAccount, seedData,
+    addTransaction, updateTransaction, seedData,
     isSyncing, isOnline, pendingMutations, retryMutation, toasts, retryingIds
-  } = useFinanceData(selectedMonth);
+  } = financeData;
 
   const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
   const { storeImage } = useAIQueue(transactions, updateTransaction, categoryNames);
 
-  const [activeTab, setActiveTab] = useState('budget');
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedAccountId = searchParams.get('accountId');
+
+  // Determine active tab from path
+  const activeTab = useMemo(() => {
+    if (pathname === '/' || pathname.startsWith('/budget')) return 'budget';
+    if (pathname.startsWith('/accounts')) return 'accounts';
+    if (pathname.startsWith('/transactions')) return 'transactions';
+    if (pathname.startsWith('/reports')) return 'reports';
+    return 'budget';
+  }, [pathname]);
+
+  const setActiveTab = (tab: string) => {
+    if (tab === 'budget') router.push('/');
+    else router.push(`/${tab}`);
+  };
+
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [isReconciling, setIsReconciling] = useState(false);
 
-  // Computed
+  // Computed for Header
   const rtaCategory = useMemo(() => categories.find(c => c.isRta), [categories]);
   const rtaBalance = rtaCategory?.available || 0;
-
-  const totalBudgeted = useMemo(() => categories.filter(c => !c.isRta).reduce((sum, cat) => sum + cat.budgeted, 0), [categories]);
-  const totalSpent = useMemo(() => categories.filter(c => !c.isRta).reduce((sum, cat) => sum + Math.abs(cat.activity), 0), [categories]);
-
   const activeAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
 
   if (authLoading || (user && dataLoading)) {
@@ -64,10 +74,9 @@ export default function Home() {
   if (!user) {
     return <LoginView />;
   }
-
-  // Seed data if empty
+  
   if (accounts.length === 0 && categories.length === 0 && !dataLoading) {
-      return (
+     return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-6 p-4 text-center">
               <div>
                 <h1 className="text-3xl font-bold mb-2">Welcome to ZeroSum!</h1>
@@ -80,23 +89,19 @@ export default function Home() {
       )
   }
 
-  const toggleTransactionStatus = (id: string, currentStatus: string) => {
-    const nextStatus = currentStatus === 'cleared' ? 'reconciled' : currentStatus === 'reconciled' ? 'uncleared' : 'cleared';
-    updateTransaction(id, { status: nextStatus as 'cleared' | 'reconciled' | 'uncleared' });
-  };
-
-  const handleReconcileFinish = async () => {
-    if (selectedAccountId) {
-        await reconcileAccount(selectedAccountId);
-    }
-    setIsReconciling(false);
-  };
+  const headerTitle = activeTab === 'budget' ? 'Budget' 
+    : activeTab === 'accounts' ? (selectedAccountId ? activeAccount?.name || 'Accounts' : 'Accounts')
+    : activeTab === 'reports' ? 'Reports' 
+    : 'Activity'; 
+    
+  const headerSubtitle = selectedAccountId ? `${activeAccount?.type} Account` : 'Financial control center.';
 
   return (
+    <DashboardProvider value={financeData}>
     <div className={`min-h-screen flex flex-col md:flex-row font-['Inter'] bg-[#fcfcfd] dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 transition-colors duration-300`}>
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={(t) => { setActiveTab(t); setSelectedAccountId(null); }}
+        setActiveTab={setActiveTab}
         isDarkMode={theme === 'dark'}
         toggleDarkMode={toggleTheme}
         onOpenSettings={() => setShowSettingsModal(true)}
@@ -104,50 +109,17 @@ export default function Home() {
 
       <main className="flex-1 flex flex-col pb-24 md:pb-0 overflow-y-auto custom-scrollbar relative px-4 md:px-8">
         <Header
-          title={activeTab === 'budget' ? 'Budget' : activeTab === 'accounts' ? (selectedAccountId ? activeAccount?.name || 'Accounts' : 'Accounts') : activeTab === 'reports' ? 'Reports' : 'Activity'}
-          subtitle={selectedAccountId ? `${activeAccount?.type} Account` : 'Financial control center.'}
+          title={headerTitle}
+          subtitle={headerSubtitle}
           rtaBalance={rtaBalance}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
           isSyncing={isSyncing}
           isOnline={isOnline}
         />
+        
+        {children}
 
-        {activeTab === 'budget' && (
-          <BudgetView
-            categories={categories}
-            accounts={accounts}
-            totalBudgeted={totalBudgeted}
-            totalSpent={totalSpent}
-            updateCategory={updateCategory}
-            deleteCategory={deleteCategory}
-            addCategory={addCategory}
-          />
-        )}
-
-        {activeTab === 'accounts' && !selectedAccountId && (
-          <AccountsView accounts={accounts} setSelectedAccountId={setSelectedAccountId} />
-        )}
-
-        {(activeTab === 'transactions' || selectedAccountId) && (
-          <TransactionsView
-            selectedAccountId={selectedAccountId}
-            onClearSelection={() => setSelectedAccountId(null)}
-            onReconcile={() => setIsReconciling(true)}
-            onToggleStatus={toggleTransactionStatus}
-          />
-        )}
-
-        {activeTab === 'reports' && (
-          <ReportsView 
-            transactions={transactions} 
-            categories={categories} 
-            totalSpent={totalSpent} 
-            selectedMonth={selectedMonth}
-          />
-        )}
-
-        {/* Floating Action Button */}
         <button
           onClick={() => setShowTransactionModal(true)}
           className="
@@ -160,8 +132,8 @@ export default function Home() {
           <span className="hidden md:block font-bold pr-0 max-w-0 overflow-hidden group-hover:max-w-[150px] group-hover:pr-2 transition-all duration-300 whitespace-nowrap">Add Transaction</span>
         </button>
       </main>
-
-      <MobileNav activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); setSelectedAccountId(null); }} />
+      
+      <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <TransactionModal
         isOpen={showTransactionModal}
@@ -181,17 +153,7 @@ export default function Home() {
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
       />
-
-      {selectedAccountId && activeAccount && (
-        <ReconcileModal
-          isOpen={isReconciling}
-          onClose={() => setIsReconciling(false)}
-          onFinish={handleReconcileFinish}
-          account={activeAccount}
-        />
-      )}
-
-      {/* Retry Notifications */}
+      
       {pendingMutations.length > 0 && (
         <div className="fixed bottom-28 left-6 right-6 md:bottom-10 md:left-auto md:right-10 flex flex-col gap-2 z-50 pointer-events-none">
           {pendingMutations.slice(-3).map((mutation) => (
@@ -222,7 +184,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Global Toasts */}
       {toasts.length > 0 && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-[60] pointer-events-none w-full max-w-sm px-4">
           {toasts.map((toast) => (
@@ -241,6 +202,8 @@ export default function Home() {
           ))}
         </div>
       )}
+
     </div>
+    </DashboardProvider>
   );
 }

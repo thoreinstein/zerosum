@@ -31,7 +31,7 @@ export function useSubscriptionPool(baseMonth: string) {
         monthUnsubs.forEach(u => u());
       });
       unsubs.current = {};
-      setPooledData({});
+      setTimeout(() => setPooledData({}), 0);
       return;
     }
 
@@ -76,7 +76,7 @@ export function useSubscriptionPool(baseMonth: string) {
             orderBy('date', 'desc')
           );
 
-          const handleError = (_error: unknown) => {
+          const handleError = () => {
             setPooledData(prev => ({
               ...prev,
               [m]: { ...prev[m], status: 'error' }

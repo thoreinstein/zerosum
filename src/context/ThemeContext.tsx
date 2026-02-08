@@ -23,7 +23,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(storedTheme);
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme('dark');
     }
     setMounted(true);

@@ -25,7 +25,7 @@ export default function ReportsView({ transactions, categories, totalSpent, sele
     })).filter(c => c.amount > 0).sort((a, b) => b.amount - a.amount);
 
     return { income, expenses, savingsRate, categorySpending };
-  }, [transactions, categories, totalSpent]);
+  }, [transactions, categories, totalSpent, selectedMonth]);
 
   return (
     <div className="space-y-6">

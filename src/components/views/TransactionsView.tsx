@@ -23,11 +23,12 @@ interface TransactionsViewProps {
 export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
   const { refreshTransactions } = useFinance();
   const [filters, setFilters] = useState<TransactionFilters>({ accountId: selectedAccountId, status: 'all' });
+  const [prevAccountId, setPrevAccountId] = useState(selectedAccountId);
 
-  // Sync accountId filter with prop
-  useEffect(() => {
+  if (selectedAccountId !== prevAccountId) {
+    setPrevAccountId(selectedAccountId);
     setFilters(prev => ({ ...prev, accountId: selectedAccountId }));
-  }, [selectedAccountId]);
+  }
 
   const { transactions, loading, loadingMore, hasMore, error, fetchNextPage, refresh } = usePaginatedTransactions(filters);
   const observerTarget = useRef<HTMLDivElement | null>(null);

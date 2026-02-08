@@ -65,8 +65,11 @@ async function main() {
         });
         console.log(`✓ ${entry.filename} processed in ${latency}ms`);
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const errorMsg = typeof (response as any).error === 'string' 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ? (response as any).error 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           : (response as any).error?.message || 'Unknown error';
         results.push({
           filename: entry.filename,
@@ -135,7 +138,6 @@ function printSummary(results: BenchmarkResult[]) {
   console.log(`Total Samples: ${results.length}`);
   console.log(`Successful:    ${successfulResults.length}`);
   console.log(`Failed:        ${results.length - successfulResults.length}`);
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const p95Value = p95Latency !== undefined ? p95Latency : avgLatency;
   console.log('-'.repeat(40));
   console.log(`Avg Latency:   ${avgLatency.toFixed(2)}ms`);

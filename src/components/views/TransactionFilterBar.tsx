@@ -11,18 +11,22 @@ interface TransactionFilterBarProps {
 
 export default function TransactionFilterBar({ filters, setFilters }: TransactionFilterBarProps) {
   const [localSearch, setLocalSearch] = useState(filters.searchQuery || '');
+  const [prevSearchQuery, setPrevSearchQuery] = useState(filters.searchQuery);
+
+  if (filters.searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(filters.searchQuery);
+    setLocalSearch(filters.searchQuery || '');
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setFilters(prev => ({ ...prev, searchQuery: localSearch }));
+      // Only update if the debounced value is different from the prop to avoid loops
+      if (localSearch !== filters.searchQuery) {
+          setFilters(prev => ({ ...prev, searchQuery: localSearch }));
+      }
     }, 400);
     return () => clearTimeout(timer);
-  }, [localSearch, setFilters]);
-
-  // Sync local search when filters are cleared externally
-  useEffect(() => {
-    setLocalSearch(filters.searchQuery || '');
-  }, [filters.searchQuery]);
+  }, [localSearch, setFilters, filters.searchQuery]);
 
   const handleStatusChange = (status: TransactionFilters['status']) => {
     setFilters(prev => ({ ...prev, status }));
