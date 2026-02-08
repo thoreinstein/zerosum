@@ -1,19 +1,36 @@
 import * as admin from 'firebase-admin';
 
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-  } catch (error) {
-    console.error('Failed to initialize Firebase Admin SDK. Check your environment variables (FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY)', error);
-  }
+function formatPrivateKey(key: string) {
+  return key.replace(/\\n/g, '\n');
 }
 
-export const adminDb = admin.firestore();
-export const adminAuth = admin.auth();
-export default admin;
+export function getFirebaseAdmin() {
+  if (!admin.apps.length) {
+    if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !process.env.FIREBASE_ADMIN_PRIVATE_KEY) {
+       // Allow build to pass if env vars are missing, but runtime will fail if accessed
+       if (process.env.NODE_ENV === 'production' && typeof window === 'undefined') {
+          // We are likely in build or runtime. 
+          // If we throw here, build fails if it tries to execute this path.
+          // But 'next build' generates static pages. 
+       }
+       throw new Error('Firebase Admin environment variables missing');
+    }
+
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+          privateKey: formatPrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY),
+        }),
+      });
+    } catch (error) {
+      console.error('Firebase Admin init error', error);
+      throw error;
+    }
+  }
+  return admin;
+}
+
+export const getAdminDb = () => getFirebaseAdmin().firestore();
+export const getAdminAuth = () => getFirebaseAdmin().auth();
