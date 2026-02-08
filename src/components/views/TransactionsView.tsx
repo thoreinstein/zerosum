@@ -1,9 +1,9 @@
 import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginatedTransactions';
 import TransactionFilterBar from './TransactionFilterBar';
-import { useFinance } from '@/context/FinanceContext';
 import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { ScanErrorCode } from '@/lib/errorUtils';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 const SCAN_ERROR_MESSAGES: Record<string, string> = {
   [ScanErrorCode.TIMEOUT]: 'The scan took too long.',
@@ -20,8 +20,11 @@ interface TransactionsViewProps {
   onToggleStatus: (id: string, currentStatus: string) => void;
 }
 
-export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
-  const { refreshTransactions } = useFinance();
+export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus: _onToggleStatus }: TransactionsViewProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  // const { refreshTransactions } = useFinance(); // Unused
   const [filterState, setFilterState] = useState<Omit<TransactionFilters, 'accountId'>>({ status: 'all' });
   
   const filters = useMemo<TransactionFilters>(() => ({
@@ -32,9 +35,10 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
   const { transactions, loading, loadingMore, hasMore, error, fetchNextPage, refresh } = usePaginatedTransactions(filters);
   const observerTarget = useRef<HTMLDivElement | null>(null);
 
-  const handleToggleStatus = async (id: string, currentStatus: string) => {
-    await onToggleStatus(id, currentStatus);
-    refreshTransactions();
+  const handleRowClick = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('txId', id);
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   useEffect(() => {
@@ -80,7 +84,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
       {transactions.map(tx => (
         <div
           key={tx.id}
-          onClick={() => handleToggleStatus(tx.id, tx.status)}
+          onClick={() => handleRowClick(tx.id)}
           className="glass-card p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -112,6 +116,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
           </div>
         </div>
       ))}
+
 
       {transactions.length === 0 && !loading && (
         <div className="text-center py-10 text-slate-400">

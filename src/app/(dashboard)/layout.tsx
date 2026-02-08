@@ -12,6 +12,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNav from '@/components/layout/MobileNav';
 import Header from '@/components/layout/Header';
 import TransactionModal from '@/components/modals/TransactionModal';
+import TransactionDetailsModal from '@/components/modals/TransactionDetailsModal';
 import SettingsModal from '@/components/modals/SettingsModal';
 import LoginView from '@/components/views/LoginView';
 import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
@@ -35,6 +36,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedAccountId = searchParams.get('accountId');
+  const txId = searchParams.get('txId');
+
+  const activeTransaction = useMemo(() => 
+    txId ? transactions.find(t => t.id === txId) : undefined
+  , [transactions, txId]);
+
+  const closeDetails = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('txId');
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   // Determine active tab from path
   const activeTab = useMemo(() => {
@@ -148,6 +160,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         defaultAccountId={selectedAccountId || undefined}
         storeImage={storeImage}
       />
+
+      {activeTransaction && (
+        <TransactionDetailsModal
+          key={activeTransaction.id}
+          isOpen={!!activeTransaction}
+          onClose={closeDetails}
+          transaction={activeTransaction}
+          accounts={accounts}
+          categories={categories}
+          onSave={async (id, data, balanceDelta) => {
+             await updateTransaction(id, data, balanceDelta);
+             refreshTransactions();
+          }}
+        />
+      )}
 
       <SettingsModal
         isOpen={showSettingsModal}
