@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useSubscriptionPool, PooledMonthData } from '@/hooks/useSubscriptionPool';
 import type { Category } from '@/hooks/useFinanceData';
 
@@ -16,10 +17,15 @@ interface FinanceContextType {
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
-export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [selectedMonth, setSelectedMonth] = useState(() => 
-    new Date().toISOString().slice(0, 7)
-  );
+function FinanceProviderInner({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const rawMonth = searchParams.get('month');
+  const selectedMonth = (rawMonth && /^\d{4}-\d{2}$/.test(rawMonth)) ? rawMonth : currentMonth;
+
   const [refreshKey, setRefreshKey] = useState(0);
   const [budgetCache, setBudgetCacheInternal] = useState<Record<string, Category[]>>({});
   
@@ -27,6 +33,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const accessOrder = useRef<string[]>([]);
 
   const pooledData = useSubscriptionPool(selectedMonth);
+
+  const setSelectedMonth = useCallback((month: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('month', month);
+    router.push(`${pathname}?${params.toString()}`);
+  }, [pathname, router, searchParams]);
 
   const setBudgetCache = useCallback((month: string, categories: Category[]) => {
     setBudgetCacheInternal(prev => {
@@ -66,6 +78,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }}>
       {children}
     </FinanceContext.Provider>
+  );
+}
+
+export function FinanceProvider({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-900" />}>
+      <FinanceProviderInner>{children}</FinanceProviderInner>
+    </Suspense>
   );
 }
 
