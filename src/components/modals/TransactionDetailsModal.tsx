@@ -30,10 +30,15 @@ export default function TransactionDetailsModal({
     status: transaction.status,
   });
 
+  const [amountInput, setAmountInput] = useState(String(transaction.amount));
+
   const handleSave = () => {
-    if (!formData.amount || !transaction) return;
+    if (!transaction) return;
     
-    onSave(transaction.id, formData);
+    const parsedAmount = parseFloat(amountInput) || 0;
+    const finalData = { ...formData, amount: parsedAmount };
+
+    onSave(transaction.id, finalData);
     onClose();
   };
 
@@ -93,11 +98,11 @@ export default function TransactionDetailsModal({
                         <DollarSign size={14} /> Amount
                     </label>
                     <input
-                        type="number"
-                        step="0.01"
-                        value={formData.amount || 0}
-                        onChange={(e) => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) }))}
-                        className={`w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-bold text-lg focus:ring-2 focus:ring-blue-500/20 ${Number(formData.amount) >= 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'}`}
+                        type="text"
+                        inputMode="decimal"
+                        value={amountInput}
+                        onChange={(e) => setAmountInput(e.target.value)}
+                        className={`w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-bold text-lg focus:ring-2 focus:ring-blue-500/20 ${parseFloat(amountInput) >= 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'}`}
                     />
                 </div>
                 <div className="space-y-2">
