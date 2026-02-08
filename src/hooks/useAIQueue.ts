@@ -17,6 +17,7 @@ export function useAIQueue(
 ) {
   const { user } = useAuth();
   const transactionsRef = useRef<Transaction[]>(transactions);
+  const isProcessingRef = useRef(false);
 
   // Sync ref with latest transactions
   useEffect(() => {
@@ -84,7 +85,7 @@ export function useAIQueue(
 
   const processQueue = useCallback(async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    if (!user) return;
+    if (!user || isProcessingRef.current) return;
 
     // Pick up pending OR failed items eligible for retry
     const queue = transactionsRef.current.filter(t => 
@@ -92,55 +93,63 @@ export function useAIQueue(
       (t.scanStatus === 'failed' && (t.scanRetryCount || 0) < 3)
     );
 
-    for (const tx of queue) {
-      try {
-        await updateTransaction(tx.id, { scanStatus: 'scanning' });
-        const image = await getImage(tx.id);
-        if (!image) {
+    if (queue.length === 0) return;
+
+    isProcessingRef.current = true;
+    try {
+      for (const tx of queue) {
+        try {
+          await updateTransaction(tx.id, { scanStatus: 'scanning' });
+          const image = await getImage(tx.id);
+          if (!image) {
+            const nextRetry = (tx.scanRetryCount || 0) + 1;
+            await updateTransaction(tx.id, { 
+              scanStatus: 'failed',
+              scanRetryCount: nextRetry,
+              scanLastError: 'Image not found in local cache'
+            });
+            continue;
+          }
+
+          const result = await scanReceipt(image, categoryNames);
+          if (result.success && result.data) {
+            const { payee, amount, date, category } = result.data;
+            const finalAmount = amount ? -Math.abs(amount) : 0;
+            const diff = finalAmount - tx.amount;
+
+            // 1. Update the transaction via the mutation framework (handles rollback/retry)
+            await updateTransaction(tx.id, {
+              payee: payee || tx.payee,
+              amount: finalAmount,
+              date: date || tx.date,
+              category: category || tx.category,
+              scanStatus: 'completed',
+              scanRetryCount: 0,
+              scanLastError: null
+            }, diff !== 0 ? diff : undefined);
+
+            await deleteImage(tx.id);
+          } else {
+            console.error('Scan failed:', result.error);
+            const nextRetry = (tx.scanRetryCount || 0) + 1;
+            await updateTransaction(tx.id, { 
+              scanStatus: 'failed', 
+              scanRetryCount: nextRetry,
+              scanLastError: result.error || 'Unknown error'
+            });
+          }
+        } catch (error) {
+          console.error('Error processing queue item:', error);
           const nextRetry = (tx.scanRetryCount || 0) + 1;
           await updateTransaction(tx.id, { 
-            scanStatus: 'failed',
-            scanRetryCount: nextRetry,
-            scanLastError: 'Image not found in local cache'
-          });
-          continue;
-        }
-
-        const result = await scanReceipt(image, categoryNames);
-        if (result.success && result.data) {
-          const { payee, amount, date, category } = result.data;
-          const finalAmount = amount ? -Math.abs(amount) : 0;
-          const diff = finalAmount - tx.amount;
-
-          // 1. Update the transaction via the mutation framework (handles rollback/retry)
-          await updateTransaction(tx.id, {
-            payee: payee || tx.payee,
-            amount: finalAmount,
-            date: date || tx.date,
-            category: category || tx.category,
-            scanStatus: 'completed',
-            scanLastError: undefined
-          }, diff !== 0 ? diff : undefined);
-
-          await deleteImage(tx.id);
-        } else {
-          console.error('Scan failed:', result.error);
-          const nextRetry = (tx.scanRetryCount || 0) + 1;
-          await updateTransaction(tx.id, { 
-            scanStatus: 'failed', 
-            scanRetryCount: nextRetry,
-            scanLastError: result.error || 'Unknown error'
+              scanStatus: 'failed', 
+              scanRetryCount: nextRetry,
+              scanLastError: String(error)
           });
         }
-      } catch (error) {
-        console.error('Error processing queue item:', error);
-        const nextRetry = (tx.scanRetryCount || 0) + 1;
-        await updateTransaction(tx.id, { 
-            scanStatus: 'failed', 
-            scanRetryCount: nextRetry,
-            scanLastError: String(error)
-        });
       }
+    } finally {
+      isProcessingRef.current = false;
     }
   }, [updateTransaction, getImage, deleteImage, categoryNames, user]);
 
