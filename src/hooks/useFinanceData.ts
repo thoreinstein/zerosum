@@ -498,6 +498,12 @@ export function useFinanceData(monthOverride?: string) {
       const accountChanged = data.accountId && data.accountId !== original.accountId;
       const amountChanged = data.amount !== undefined && data.amount !== original.amount;
       const amount = data.amount !== undefined ? data.amount : original.amount;
+      
+      const categoryName = data.category || original.category;
+      const ccPaymentCategory = categories.find(c => c.name === categoryName && c.isCcPayment);
+      const linkedAccountDelta = ccPaymentCategory?.linkedAccountId && amountChanged 
+          ? Math.abs(amount) - Math.abs(original.amount) 
+          : 0;
 
       // Optimistic
       setAllTransactions(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
@@ -512,6 +518,10 @@ export function useFinanceData(monthOverride?: string) {
         } else if (amountChanged) {
           const delta = amount - original.amount;
           next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance + delta } : a);
+        }
+        
+        if (linkedAccountDelta !== 0 && ccPaymentCategory?.linkedAccountId) {
+             next = next.map(a => a.id === ccPaymentCategory.linkedAccountId ? { ...a, balance: a.balance + linkedAccountDelta } : a);
         }
         return next;
       });
@@ -530,6 +540,11 @@ export function useFinanceData(monthOverride?: string) {
              const accRef = doc(db, 'users', user.uid, 'accounts', original.accountId);
              batch.update(accRef, { balance: increment(amount - original.amount) });
         }
+        
+        if (linkedAccountDelta !== 0 && ccPaymentCategory?.linkedAccountId) {
+            const linkedAccRef = doc(db, 'users', user.uid, 'accounts', ccPaymentCategory.linkedAccountId);
+            batch.update(linkedAccRef, { balance: increment(linkedAccountDelta) });
+        }
 
         await batch.commit();
       } catch (error) {
@@ -545,6 +560,9 @@ export function useFinanceData(monthOverride?: string) {
           } else if (amountChanged) {
             const delta = amount - original.amount;
             next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance - delta } : a);
+          }
+          if (linkedAccountDelta !== 0 && ccPaymentCategory?.linkedAccountId) {
+             next = next.map(a => a.id === ccPaymentCategory.linkedAccountId ? { ...a, balance: a.balance - linkedAccountDelta } : a);
           }
           return next;
         });
@@ -762,7 +780,8 @@ export function useFinanceData(monthOverride?: string) {
           await addTransaction(txData, id, true);
         }
         if (mutation.type === 'update') {
-          const { id, ...updateData } = mutation.data as Partial<Transaction> & { id: string };
+          // Explicitly strip balanceDelta from legacy queued mutations
+          const { id, balanceDelta: _legacyDelta, ...updateData } = mutation.data as Partial<Transaction> & { id: string, balanceDelta?: number };
           await updateTransaction(id, updateData as Partial<Transaction>, true);
         }
       } else if (mutation.entity === 'category') {
