@@ -97,8 +97,10 @@ export function useAIQueue(
         await updateTransaction(tx.id, { scanStatus: 'scanning' });
         const image = await getImage(tx.id);
         if (!image) {
+          const nextRetry = (tx.scanRetryCount || 0) + 1;
           await updateTransaction(tx.id, { 
             scanStatus: 'failed',
+            scanRetryCount: nextRetry,
             scanLastError: 'Image not found in local cache'
           });
           continue;
