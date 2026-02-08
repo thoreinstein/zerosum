@@ -1,7 +1,7 @@
 import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginatedTransactions';
 import TransactionFilterBar from './TransactionFilterBar';
 import { useFinance } from '@/context/FinanceContext';
-import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw, Info } from 'lucide-react';
+import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ScanErrorCode } from '@/lib/errorUtils';
 
