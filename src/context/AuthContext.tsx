@@ -51,6 +51,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           
           if (res.ok) {
             router.refresh(); // Refresh middleware state
+            // If we are on the login page, redirect to home now that session is synced
+            if (window.location.pathname === '/login') {
+              router.push('/');
+            }
           } else {
             const data = await res.json().catch(() => ({}));
             console.error('Failed to sync session:', data.error || res.statusText);
@@ -77,7 +81,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push('/');
+      // No longer redirecting here to avoid race with session cookie sync
     } catch (error) {
       console.error("Error signing in with Google", error);
     }
