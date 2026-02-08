@@ -86,13 +86,21 @@ export function useAIQueue(
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (!user) return;
 
-    const pending = transactionsRef.current.filter(t => t.scanStatus === 'pending');
-    for (const tx of pending) {
+    // Pick up pending OR failed items eligible for retry
+    const queue = transactionsRef.current.filter(t => 
+      t.scanStatus === 'pending' || 
+      (t.scanStatus === 'failed' && (t.scanRetryCount || 0) < 3)
+    );
+
+    for (const tx of queue) {
       try {
         await updateTransaction(tx.id, { scanStatus: 'scanning' });
         const image = await getImage(tx.id);
         if (!image) {
-          await updateTransaction(tx.id, { scanStatus: 'failed' });
+          await updateTransaction(tx.id, { 
+            scanStatus: 'failed',
+            scanLastError: 'Image not found in local cache'
+          });
           continue;
         }
 
@@ -108,17 +116,28 @@ export function useAIQueue(
             amount: finalAmount,
             date: date || tx.date,
             category: category || tx.category,
-            scanStatus: 'completed'
+            scanStatus: 'completed',
+            scanLastError: undefined
           }, diff !== 0 ? diff : undefined);
 
           await deleteImage(tx.id);
         } else {
           console.error('Scan failed:', result.error);
-          await updateTransaction(tx.id, { scanStatus: 'failed' });
+          const nextRetry = (tx.scanRetryCount || 0) + 1;
+          await updateTransaction(tx.id, { 
+            scanStatus: 'failed', 
+            scanRetryCount: nextRetry,
+            scanLastError: result.error || 'Unknown error'
+          });
         }
       } catch (error) {
         console.error('Error processing queue item:', error);
-        await updateTransaction(tx.id, { scanStatus: 'failed' });
+        const nextRetry = (tx.scanRetryCount || 0) + 1;
+        await updateTransaction(tx.id, { 
+            scanStatus: 'failed', 
+            scanRetryCount: nextRetry,
+            scanLastError: String(error)
+        });
       }
     }
   }, [updateTransaction, getImage, deleteImage, categoryNames, user]);
