@@ -54,7 +54,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } else {
         // Clear session cookie
-        await fetch('/api/auth/session', { method: 'DELETE' });
+        try {
+          await fetch('/api/auth/session', { method: 'DELETE' });
+        } catch (error) {
+          console.error('Failed to clear session:', error);
+        }
       }
 
       setLoading(false);
@@ -75,7 +79,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     try {
       await signOut(auth);
-      await fetch('/api/auth/session', { method: 'DELETE' });
+      try {
+        await fetch('/api/auth/session', { method: 'DELETE' });
+      } catch (error) {
+        console.error('Failed to clear session during logout:', error);
+      }
       router.push('/login');
     } catch (error) {
       console.error("Error signing out", error);
