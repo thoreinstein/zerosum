@@ -104,6 +104,19 @@ Centralize background listener management in a "Pool" hook to support windowed f
 ### 9. Session Loading State
 - **Explicit Loading Initialization**: Always explicitly set `loading = true` when a user session begins (e.g., inside the `useEffect` triggered by `user`). This prevents the UI from momentarily rendering "Empty" or "Seed Data" states while waiting for the first Firestore snapshot.
 
+### 10. Auth State Race Conditions
+**Trap**: Navigating immediately after a client-side login (before the server-side session cookie is synced) causes the Middleware to redirect back to `/login`.
+**Mitigation**: Treat session cookie synchronization as a blocking dependency. Only navigate to protected routes *after* the `fetch('/api/auth/session')` call succeeds in the `onAuthStateChanged` listener.
+
+### 11. JIT Admin Initialization
+**Pattern**: Wrap `firebase-admin` initialization in a getter (`getFirebaseAdmin()`) rather than executing it at the top level. This prevents build failures in CI/CD environments where production secrets (like private keys) are not available.
+
+### 12. Lightweight JWT Verification (Edge-Safe)
+**Pattern**: Use `jose` to verify session cookies in Next.js Middleware. Since the Edge Runtime cannot use `firebase-admin` (Node.js only), manually fetch Google's public keys and verify the token signature to prevent auth bypass.
+
+### 13. Session Cookies for SSR
+**Decision**: Use HTTP-only session cookies to bridge Firebase's client-side auth with Next.js Server Components and Middleware. This allows for secure, server-side route protection without relying on client-side headers for initial page loads.
+
 ## Search Strategy
 
 - **Keyword Search**: Uses Firestore prefix queries (`>=` and `<= \uf8ff`).
