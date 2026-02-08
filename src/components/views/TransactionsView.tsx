@@ -2,7 +2,7 @@ import { usePaginatedTransactions, TransactionFilters } from '@/hooks/usePaginat
 import TransactionFilterBar from './TransactionFilterBar';
 import { useFinance } from '@/context/FinanceContext';
 import { ArrowLeft, CheckCheck, Lock, FileText, Loader2, CloudSync, AlertTriangle, RefreshCw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { ScanErrorCode } from '@/lib/errorUtils';
 
 const SCAN_ERROR_MESSAGES: Record<string, string> = {
@@ -22,13 +22,12 @@ interface TransactionsViewProps {
 
 export default function TransactionsView({ selectedAccountId, onClearSelection, onReconcile, onToggleStatus }: TransactionsViewProps) {
   const { refreshTransactions } = useFinance();
-  const [filters, setFilters] = useState<TransactionFilters>({ accountId: selectedAccountId, status: 'all' });
-  const [prevAccountId, setPrevAccountId] = useState(selectedAccountId);
-
-  if (selectedAccountId !== prevAccountId) {
-    setPrevAccountId(selectedAccountId);
-    setFilters(prev => ({ ...prev, accountId: selectedAccountId }));
-  }
+  const [filterState, setFilterState] = useState<Omit<TransactionFilters, 'accountId'>>({ status: 'all' });
+  
+  const filters = useMemo<TransactionFilters>(() => ({
+    ...filterState,
+    accountId: selectedAccountId
+  }), [filterState, selectedAccountId]);
 
   const { transactions, loading, loadingMore, hasMore, error, fetchNextPage, refresh } = usePaginatedTransactions(filters);
   const observerTarget = useRef<HTMLDivElement | null>(null);
@@ -65,7 +64,7 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
 
   return (
     <div className="space-y-4 pb-10">
-      <TransactionFilterBar filters={filters} setFilters={setFilters} />
+      <TransactionFilterBar filters={filters} setFilters={setFilterState} />
 
       {selectedAccountId && (
         <div className="flex gap-2 mb-4">
