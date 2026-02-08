@@ -1,6 +1,6 @@
 'use server';
 
-import { gemini15Flash } from '@genkit-ai/googleai';
+import { gemini20Flash } from '@genkit-ai/googleai';
 import { z } from 'genkit'; // Import z from genkit to ensure version compatibility
 import { ai } from '@/lib/genkit';
 
@@ -16,7 +16,7 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
     const categoryList = categories.length > 0 ? categories.join(', ') : 'Dining Out, Groceries, Utilities, Rent, Entertainment';
 
     const response = await ai.generate({
-      model: gemini15Flash,
+      model: gemini20Flash,
       prompt: [
         { text: `Extract data from this receipt. Classify the category into one of these: ${categoryList}.` },
         { media: { url: `data:image/png;base64,${base64Image}` } }
