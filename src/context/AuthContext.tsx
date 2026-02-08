@@ -43,14 +43,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Sync session cookie
         try {
           const idToken = await user.getIdToken();
-          await fetch('/api/auth/session', {
+          const res = await fetch('/api/auth/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken }),
           });
-          router.refresh(); // Refresh middleware state
+          
+          if (res.ok) {
+            router.refresh(); // Refresh middleware state
+          } else {
+            const data = await res.json().catch(() => ({}));
+            console.error('Failed to sync session:', data.error || res.statusText);
+            // If session sync fails, we might want to sign out or show a warning
+          }
         } catch (error) {
-          console.error('Failed to sync session:', error);
+          console.error('Network error during session sync:', error);
         }
       } else {
         // Clear session cookie

@@ -27,8 +27,16 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Error creating session cookie:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error creating session cookie:', message);
+    
+    if (message.includes('environment variables missing')) {
+      return NextResponse.json({ 
+        error: 'Server misconfiguration: Firebase Admin keys are missing. See SETUP.md.' 
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error during session creation' }, { status: 500 });
   }
 }
 
