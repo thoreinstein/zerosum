@@ -65,13 +65,16 @@ async function main() {
         });
         console.log(`✓ ${entry.filename} processed in ${latency}ms`);
       } else {
+        const errorMsg = typeof (response as any).error === 'string' 
+          ? (response as any).error 
+          : (response as any).error?.message || 'Unknown error';
         results.push({
           filename: entry.filename,
           latency,
-          error: response.error,
+          error: errorMsg,
           success: false
         });
-        console.error(`✗ ${entry.filename} failed: ${response.error}`);
+        console.error(`✗ ${entry.filename} failed: ${errorMsg}`);
       }
     } catch (error) {
       console.error(`✗ ${entry.filename} error:`, error);
