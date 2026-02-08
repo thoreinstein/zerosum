@@ -499,30 +499,33 @@ export function useFinanceData(monthOverride?: string) {
       const amountChanged = data.amount !== undefined && data.amount !== original.amount;
       const amount = data.amount !== undefined ? data.amount : original.amount;
       
-      const categoryName = data.category || original.category;
-      const ccPaymentCategory = categories.find(c => c.name === categoryName && c.isCcPayment);
-      const linkedAccountDelta = ccPaymentCategory?.linkedAccountId && amountChanged 
-          ? Math.abs(amount) - Math.abs(original.amount) 
-          : 0;
+      const newCategoryName = data.category || original.category;
+      const oldCcMeta = categories.find(c => c.name === original.category && c.isCcPayment);
+      const newCcMeta = categories.find(c => c.name === newCategoryName && c.isCcPayment);
 
       // Optimistic
       setAllTransactions(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
       
       setAccounts(prev => {
         let next = [...prev];
+        
+        // 1. Handle Transaction Account Balance
         if (accountChanged) {
-          // Revert old account balance
           next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance - original.amount } : a);
-          // Update new account balance
           next = next.map(a => a.id === newAccountId ? { ...a, balance: a.balance + amount } : a);
         } else if (amountChanged) {
-          const delta = amount - original.amount;
-          next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance + delta } : a);
+          next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance + (amount - original.amount) } : a);
+        }
+
+        // 2. Handle Linked CC Account Balance (Transfers)
+        // If categories changed or amount changed, we need to rebalance the linked sides
+        if (oldCcMeta?.linkedAccountId) {
+          next = next.map(a => a.id === oldCcMeta.linkedAccountId ? { ...a, balance: a.balance - Math.abs(original.amount) } : a);
+        }
+        if (newCcMeta?.linkedAccountId) {
+          next = next.map(a => a.id === newCcMeta.linkedAccountId ? { ...a, balance: a.balance + Math.abs(amount) } : a);
         }
         
-        if (linkedAccountDelta !== 0 && ccPaymentCategory?.linkedAccountId) {
-             next = next.map(a => a.id === ccPaymentCategory.linkedAccountId ? { ...a, balance: a.balance + linkedAccountDelta } : a);
-        }
         return next;
       });
 
@@ -531,6 +534,7 @@ export function useFinanceData(monthOverride?: string) {
         const txRef = doc(db, 'users', user.uid, 'transactions', id);
         batch.update(txRef, data);
         
+        // 1. Transaction Account
         if (accountChanged) {
              const oldAccRef = doc(db, 'users', user.uid, 'accounts', original.accountId);
              const newAccRef = doc(db, 'users', user.uid, 'accounts', newAccountId);
@@ -540,10 +544,15 @@ export function useFinanceData(monthOverride?: string) {
              const accRef = doc(db, 'users', user.uid, 'accounts', original.accountId);
              batch.update(accRef, { balance: increment(amount - original.amount) });
         }
-        
-        if (linkedAccountDelta !== 0 && ccPaymentCategory?.linkedAccountId) {
-            const linkedAccRef = doc(db, 'users', user.uid, 'accounts', ccPaymentCategory.linkedAccountId);
-            batch.update(linkedAccRef, { balance: increment(linkedAccountDelta) });
+
+        // 2. Linked CC Accounts
+        if (oldCcMeta?.linkedAccountId) {
+            const oldLinkedAccRef = doc(db, 'users', user.uid, 'accounts', oldCcMeta.linkedAccountId);
+            batch.update(oldLinkedAccRef, { balance: increment(-Math.abs(original.amount)) });
+        }
+        if (newCcMeta?.linkedAccountId) {
+            const newLinkedAccRef = doc(db, 'users', user.uid, 'accounts', newCcMeta.linkedAccountId);
+            batch.update(newLinkedAccRef, { balance: increment(Math.abs(amount)) });
         }
 
         await batch.commit();
@@ -554,15 +563,19 @@ export function useFinanceData(monthOverride?: string) {
         
         setAccounts(prev => {
           let next = [...prev];
+          // Revert Transaction Account
           if (accountChanged) {
             next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance + original.amount } : a);
             next = next.map(a => a.id === newAccountId ? { ...a, balance: a.balance - amount } : a);
           } else if (amountChanged) {
-            const delta = amount - original.amount;
-            next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance - delta } : a);
+            next = next.map(a => a.id === original.accountId ? { ...a, balance: a.balance - (amount - original.amount) } : a);
           }
-          if (linkedAccountDelta !== 0 && ccPaymentCategory?.linkedAccountId) {
-             next = next.map(a => a.id === ccPaymentCategory.linkedAccountId ? { ...a, balance: a.balance - linkedAccountDelta } : a);
+          // Revert Linked CC Accounts
+          if (oldCcMeta?.linkedAccountId) {
+            next = next.map(a => a.id === oldCcMeta.linkedAccountId ? { ...a, balance: a.balance + Math.abs(original.amount) } : a);
+          }
+          if (newCcMeta?.linkedAccountId) {
+            next = next.map(a => a.id === newCcMeta.linkedAccountId ? { ...a, balance: a.balance - Math.abs(amount) } : a);
           }
           return next;
         });
