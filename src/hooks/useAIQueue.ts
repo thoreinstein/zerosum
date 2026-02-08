@@ -3,8 +3,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { scanReceipt } from '@/app/actions/scanReceipt';
 import { Transaction } from '@/hooks/useFinanceData';
-import { writeBatch, doc, increment } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 
 const DB_NAME = 'zerosum_ai_cache';
