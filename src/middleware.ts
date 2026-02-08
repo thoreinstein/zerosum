@@ -6,11 +6,75 @@ import * as jose from 'jose';
 const GOOGLE_CERT_URL = 'https://www.googleapis.com/identitytoolkit/v3/relyingparty/publicKeys';
 const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
+type CertCache = {
+  keys: Record<string, string>;
+  expiresAt: number;
+};
+
+let certCache: CertCache | null = null;
+let pendingCertFetch: Promise<Record<string, string> | null> | null = null;
+
+function parseMaxAge(cacheControl: string | null): number {
+  if (!cacheControl) {
+    return 300;
+  }
+
+  const match = cacheControl.match(/max-age=(\d+)/);
+  if (!match) {
+    return 300;
+  }
+
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+}
+
+async function fetchGooglePublicKeys(): Promise<Record<string, string> | null> {
+  const now = Date.now();
+  if (certCache && certCache.expiresAt > now) {
+    return certCache.keys;
+  }
+
+  if (pendingCertFetch) {
+    return pendingCertFetch;
+  }
+
+  pendingCertFetch = (async () => {
+    try {
+      const res = await fetch(GOOGLE_CERT_URL, { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch certs: ${res.status}`);
+      }
+
+      const keys = (await res.json()) as Record<string, string>;
+      const ttlSeconds = parseMaxAge(res.headers.get('cache-control'));
+
+      certCache = {
+        keys,
+        expiresAt: Date.now() + ttlSeconds * 1000,
+      };
+
+      return keys;
+    } catch (error) {
+      // Prefer stale cached keys over forcing a global auth outage on transient failures.
+      if (certCache) {
+        return certCache.keys;
+      }
+      console.error('Unable to refresh Google public keys:', error);
+      return null;
+    } finally {
+      pendingCertFetch = null;
+    }
+  })();
+
+  return pendingCertFetch;
+}
+
 async function verifySessionCookie(cookie: string) {
   try {
-    // 1. Fetch Google's public keys (In production, this should be cached)
-    const res = await fetch(GOOGLE_CERT_URL);
-    const publicKeys = await res.json();
+    const publicKeys = await fetchGooglePublicKeys();
+    if (!publicKeys) {
+      return false;
+    }
     
     // 2. We need to verify the JWT. Since we don't know which kid was used, 
     // and jose verify expects a specific key or a JWKS, we have a few options.
