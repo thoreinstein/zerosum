@@ -77,7 +77,7 @@ export interface Transaction {
   isPending?: boolean;
   scanStatus?: 'pending' | 'scanning' | 'completed' | 'failed';
   scanRetryCount?: number;
-  scanLastError?: string;
+  scanLastError?: string | null;
 }
 
 export function useFinanceData(monthOverride?: string) {
