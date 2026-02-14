@@ -235,6 +235,17 @@ export function useFinanceData(monthOverride?: string) {
     const runningAvailable: Record<string, number> = {};
     const monthResults: Record<string, Record<string, { budgeted: number, activity: number, available: number }>> = {};
 
+    // Group credit card transactions by month beforehand to avoid O(M*T) complexity
+    const ccTransactionsMap: Record<string, Transaction[]> = {};
+    combinedTransactions.forEach(tx => {
+        const month = tx.date.slice(0, 7);
+        const acc = accounts.find(a => a.id === tx.accountId);
+        if (acc?.type === 'Credit Card' && tx.amount < 0) {
+            if (!ccTransactionsMap[month]) ccTransactionsMap[month] = [];
+            ccTransactionsMap[month].push(tx);
+        }
+    });
+
     months.forEach(m => {
       monthResults[m] = {};
       let totalBudgetedToCategories = 0;
@@ -250,11 +261,7 @@ export function useFinanceData(monthOverride?: string) {
         totalBudgetedToCategories += budgeted;
       });
 
-      const ccTransactions = combinedTransactions.filter(tx => {
-          const month = tx.date.slice(0, 7);
-          const acc = accounts.find(a => a.id === tx.accountId);
-          return month === m && acc?.type === 'Credit Card' && tx.amount < 0;
-      });
+      const ccTransactions = ccTransactionsMap[m] || [];
 
       ccTransactions.forEach(tx => {
           const catMeta = metadata.find(c => c.name === tx.category);
