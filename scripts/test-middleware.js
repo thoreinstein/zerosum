@@ -1,9 +1,16 @@
 const assert = require('assert');
 
+// Helper function to match exact path or path prefix with trailing slash
+function matchesExactOrPrefix(pathname, path) {
+  return pathname === path || pathname.startsWith(path + '/');
+}
+
 // Mocking the logic in middleware.ts
 function simulateMiddleware(pathname, session, isValidSession) {
-  const isApiRoute = pathname === '/api' || pathname.startsWith('/api/');
-  const isAuthRoute = pathname === '/login' || pathname.startsWith('/login/') || pathname === '/api/auth' || pathname.startsWith('/api/auth/');
+  const isApiRoute = matchesExactOrPrefix(pathname, '/api');
+  const isLoginRoute = matchesExactOrPrefix(pathname, '/login');
+  const isApiAuthRoute = matchesExactOrPrefix(pathname, '/api/auth');
+  const isAuthRoute = isLoginRoute || isApiAuthRoute;
 
   // 1. Handle protected routes
   if (!isAuthRoute) {
@@ -24,7 +31,7 @@ function simulateMiddleware(pathname, session, isValidSession) {
   }
 
   // 2. Handle login page redirect if already authenticated
-  if ((pathname === '/login' || pathname.startsWith('/login/')) && session) {
+  if (isLoginRoute && session) {
     const isValid = isValidSession;
     if (isValid) {
       return { type: 'redirect', url: '/' };
