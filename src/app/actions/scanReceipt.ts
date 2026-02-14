@@ -29,7 +29,9 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
       throw new Error('Image size exceeds maximum allowed size');
     }
     if (!BASE64_REGEX.test(base64Image)) {
-      throw new Error('Invalid base64 image format');
+      throw new Error(
+        'Invalid base64 image format: must be a base64-encoded string with optional data URL prefix (data:image/[type];base64,)'
+      );
     }
 
     // Additional base64 length validation: ensure payload length is valid after padding
