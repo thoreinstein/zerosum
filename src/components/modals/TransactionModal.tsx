@@ -67,12 +67,25 @@ export default function TransactionModal({ isOpen, onClose, accounts, categories
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+
+      const MAX_DIMENSION = 1024;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
       const ctx = canvas.getContext('2d');
       if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const base64Data = canvas.toDataURL('image/png').split(',')[1];
+          ctx.drawImage(video, 0, 0, width, height);
+          // Using JPEG with 0.8 quality for significantly smaller payload size
+          const base64Data = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
           stopCamera();
           processReceipt(base64Data);
       }

@@ -18,6 +18,11 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
   try {
     const categoryList = categories.length > 0 ? categories.join(', ') : 'Dining Out, Groceries, Utilities, Rent, Entertainment';
 
+    // Detect if the image is PNG or JPEG to maintain backward compatibility
+    // PNG starts with 'iVBORw' (base64 for \x89PNG)
+    const isPng = base64Image.startsWith('iVBORw');
+    const mimeType = isPng ? 'image/png' : 'image/jpeg';
+
     const generatePromise = ai.generate({
       model: gemini20Flash,
       config: {
@@ -35,7 +40,7 @@ Extract the following fields:
 
 If the text is faint (thermal paper), look for high-contrast patterns.
 If the receipt is crumpled, use context to reconstruct broken lines.` },
-        { media: { url: `data:image/png;base64,${base64Image}` } }
+        { media: { url: `data:${mimeType};base64,${base64Image}` } }
       ],
       output: { schema: ReceiptSchema },
     });
