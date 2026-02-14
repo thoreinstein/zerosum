@@ -5,25 +5,51 @@ import { z } from 'genkit'; // Import z from genkit to ensure version compatibil
 import { ai } from '@/lib/genkit';
 import { ScanErrorCode, createScanError } from '@/lib/errorUtils';
 
-const CategorySchema = z.string().min(1).max(50).regex(/^[a-zA-Z0-9 &'().,-]+$/);
+const CategorySchema = z.string().min(1).max(50).regex(/^[a-zA-Z0-9 &'().,\-/:]+$/);
 const DEFAULT_CATEGORIES = ['Dining Out', 'Groceries', 'Utilities', 'Rent', 'Entertainment'] as const;
+
+// Maximum number of categories to prevent prompt token overflow and cost issues
+const MAX_CATEGORIES = 100;
+
+// Maximum base64 image size: ~10MB (base64 is ~1.37x original size, so ~7.3MB image)
+const MAX_BASE64_SIZE = 10 * 1024 * 1024;
+
+// Base64 validation regex (allows data URL prefix or raw base64)
+const BASE64_REGEX = /^(?:data:image\/[a-z]+;base64,)?[A-Za-z0-9+/]*={0,2}$/;
 
 const SCAN_TIMEOUT_MS = 25000; // 25 seconds
 
 export async function scanReceipt(base64Image: string, categories: string[] = []) {
   try {
+    // Validate base64 image format and size
     if (typeof base64Image !== 'string' || !base64Image) {
       throw new Error('Invalid image data');
     }
+    if (base64Image.length > MAX_BASE64_SIZE) {
+      throw new Error('Image size exceeds maximum allowed size');
+    }
+    if (!BASE64_REGEX.test(base64Image)) {
+      throw new Error('Invalid base64 image format');
+    }
 
     // Sanitize and validate categories to prevent prompt injection
+    // Limit to MAX_CATEGORIES to prevent token overflow and cost issues
     const safeCategories = (Array.isArray(categories) ? categories : [])
+      .slice(0, MAX_CATEGORIES)
       .map(cat => typeof cat === 'string' ? cat.trim() : '')
       .filter(cat => CategorySchema.safeParse(cat).success);
 
-    const finalCategories = safeCategories.length > 0
-      ? safeCategories
+    // Deduplicate categories to prevent z.enum errors
+    const uniqueCategories = Array.from(new Set(safeCategories));
+
+    const finalCategories = uniqueCategories.length > 0
+      ? uniqueCategories
       : [...DEFAULT_CATEGORIES];
+
+    // Runtime assertion to ensure finalCategories is never empty
+    if (finalCategories.length === 0) {
+      throw new Error('No valid categories available');
+    }
 
     // Create a dynamic schema to enforce the category list
     const ReceiptSchema = z.object({
