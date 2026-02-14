@@ -34,13 +34,14 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
       );
     }
 
-    // Additional base64 length validation: ensure payload length is valid after padding
+    // Normalize data URL: extract base64 payload only (strip any existing prefix)
     let base64Payload = base64Image;
     const dataUrlPrefixMatch = base64Payload.match(/^data:image\/[a-z]+;base64,/);
     if (dataUrlPrefixMatch) {
       base64Payload = base64Payload.slice(dataUrlPrefixMatch[0].length);
     }
 
+    // Additional base64 length validation: ensure payload length is valid after padding
     const remainder = base64Payload.length % 4;
     if (remainder === 1) {
       // This cannot be corrected by padding and indicates malformed base64
@@ -48,10 +49,10 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
     }
     if (remainder !== 0) {
       // Conceptually pad to the next multiple of 4 for validation purposes
-      base64Payload = base64Payload + '='.repeat(4 - remainder);
-    }
-    if (base64Payload.length % 4 !== 0) {
-      throw new Error('Invalid base64 image format');
+      const paddedPayload = base64Payload + '='.repeat(4 - remainder);
+      if (paddedPayload.length % 4 !== 0) {
+        throw new Error('Invalid base64 image format');
+      }
     }
     // Sanitize and validate categories to prevent prompt injection
     // Limit to MAX_CATEGORIES to prevent token overflow and cost issues
@@ -96,7 +97,7 @@ Extract the following fields:
 
 If the text is faint (thermal paper), look for high-contrast patterns.
 If the receipt is crumpled, use context to reconstruct broken lines.` },
-        { media: { url: `data:image/png;base64,${base64Image}` } }
+        { media: { url: `data:image/png;base64,${base64Payload}` } }
       ],
       output: { schema: ReceiptSchema },
     });
