@@ -290,7 +290,9 @@ export function useFinanceData(monthOverride?: string) {
               if (shiftAmount > 0) {
                   monthResults[m][catMeta.id].available -= shiftAmount;
                   if (!monthResults[m][ccPaymentMeta.id]) {
-                      monthResults[m][ccPaymentMeta.id] = { budgeted: budgetMap[m]?.[ccPaymentMeta.id] || 0, activity: 0, available: runningAvailable[ccPaymentMeta.id] || 0 };
+                      const budgeted = budgetMap[m]?.[ccPaymentMeta.id] || 0;
+                      monthResults[m][ccPaymentMeta.id] = { budgeted, activity: 0, available: runningAvailable[ccPaymentMeta.id] || 0 };
+                      totalBudgetedToCategories += budgeted;
                   }
                   monthResults[m][ccPaymentMeta.id].available += shiftAmount;
               }
