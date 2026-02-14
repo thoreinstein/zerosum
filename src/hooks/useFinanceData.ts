@@ -209,13 +209,40 @@ export function useFinanceData(monthOverride?: string) {
   const calculateFinances = useCallback(() => {
     if (metadata.length === 0) return;
 
+    // 0. Pre-calculate lookup maps for efficiency
+    const accountTypeMap: Record<string, string> = {};
+    accounts.forEach(acc => {
+      accountTypeMap[acc.id] = acc.type;
+    });
+
+    const catByName: Record<string, CategoryMetadata> = {};
+    const ccPaymentCatByAccountId: Record<string, CategoryMetadata> = {};
+    let rtaMetadata: CategoryMetadata | undefined;
+
+    metadata.forEach(cat => {
+      catByName[cat.name] = cat;
+      if (cat.isCcPayment && cat.linkedAccountId) {
+        ccPaymentCatByAccountId[cat.linkedAccountId] = cat;
+      }
+      if (cat.isRta) {
+        rtaMetadata = cat;
+      }
+    });
+
     // 1. Group transactions by month and category
     const activityMap: Record<string, Record<string, number>> = {};
+    const ccTransactionsByMonth: Record<string, Transaction[]> = {};
     combinedTransactions.forEach(tx => {
       const month = tx.date.slice(0, 7);
       if (!activityMap[month]) activityMap[month] = {};
       if (!activityMap[month][tx.category]) activityMap[month][tx.category] = 0;
       activityMap[month][tx.category] += tx.amount;
+
+      // Group CC transactions for later shift calculation
+      if (tx.amount < 0 && accountTypeMap[tx.accountId] === 'Credit Card') {
+        if (!ccTransactionsByMonth[month]) ccTransactionsByMonth[month] = [];
+        ccTransactionsByMonth[month].push(tx);
+      }
     });
 
     // 2. Group allocations by month and category
@@ -250,15 +277,11 @@ export function useFinanceData(monthOverride?: string) {
         totalBudgetedToCategories += budgeted;
       });
 
-      const ccTransactions = combinedTransactions.filter(tx => {
-          const month = tx.date.slice(0, 7);
-          const acc = accounts.find(a => a.id === tx.accountId);
-          return month === m && acc?.type === 'Credit Card' && tx.amount < 0;
-      });
+      const ccTransactions = ccTransactionsByMonth[m] || [];
 
       ccTransactions.forEach(tx => {
-          const catMeta = metadata.find(c => c.name === tx.category);
-          const ccPaymentMeta = metadata.find(c => c.isCcPayment && c.linkedAccountId === tx.accountId);
+          const catMeta = catByName[tx.category];
+          const ccPaymentMeta = ccPaymentCatByAccountId[tx.accountId];
           
           if (catMeta && ccPaymentMeta && !catMeta.isRta) {
               const currentAvailable = monthResults[m][catMeta.id]?.available || 0;
@@ -288,7 +311,6 @@ export function useFinanceData(monthOverride?: string) {
           }
       });
 
-      const rtaMetadata = metadata.find(c => c.isRta);
       if (rtaMetadata) {
           const income = activityMap[m]?.[rtaMetadata.name] || 0;
           const prevRta = runningAvailable[rtaMetadata.id] || 0;
@@ -298,9 +320,10 @@ export function useFinanceData(monthOverride?: string) {
       }
     });
 
-    months.forEach(m => {
+    // 4. Update state for the selected month
+    if (monthResults[selectedMonth]) {
       const merged = metadata.map(catMeta => {
-        const stats = monthResults[m]?.[catMeta.id] || { budgeted: 0, activity: 0, available: 0 };
+        const stats = monthResults[selectedMonth][catMeta.id] || { budgeted: 0, activity: 0, available: 0 };
         return {
           ...catMeta,
           budgeted: stats.budgeted,
@@ -310,13 +333,9 @@ export function useFinanceData(monthOverride?: string) {
         } as Category;
       });
 
-      // Only update global cache for the active month to avoid excessive provider updates
-      if (m === selectedMonth) {
-        setBudgetCache(m, merged);
-        // If this is the active month, set local state for immediate UI feedback
-        setCategories(merged);
-      }
-    });
+      setBudgetCache(selectedMonth, merged);
+      setCategories(merged);
+    }
 
     // Keep full transaction set for downstream background processors (e.g. AI scan queue)
     setTransactions(combinedTransactions); 
