@@ -108,15 +108,23 @@ async function verifySessionCookie(cookie: string) {
 export async function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   const { pathname } = request.nextUrl;
+  const isApiRoute = pathname.startsWith('/api');
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/api/auth');
 
   // 1. Handle protected routes
-  if (!pathname.startsWith('/login')) {
+  if (!isAuthRoute) {
     if (!session) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
       return NextResponse.redirect(new URL('/login', request.url));
     }
 
     const isValid = await verifySessionCookie(session.value);
     if (!isValid) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
       const response = NextResponse.redirect(new URL('/login', request.url));
       response.cookies.delete('session');
       return response;
@@ -135,5 +143,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

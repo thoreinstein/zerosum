@@ -24,7 +24,6 @@ export default function TransactionsView({ selectedAccountId, onClearSelection, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  // const { refreshTransactions } = useFinance(); // Unused
   const [filterState, setFilterState] = useState<Omit<TransactionFilters, 'accountId'>>({ status: 'all' });
   
   const filters = useMemo<TransactionFilters>(() => ({
