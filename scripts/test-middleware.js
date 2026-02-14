@@ -2,8 +2,8 @@ const assert = require('assert');
 
 // Mocking the logic in middleware.ts
 function simulateMiddleware(pathname, session, isValidSession) {
-  const isApiRoute = pathname.startsWith('/api');
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/api/auth');
+  const isApiRoute = pathname === '/api' || pathname.startsWith('/api/');
+  const isAuthRoute = pathname === '/login' || pathname.startsWith('/login/') || pathname === '/api/auth' || pathname.startsWith('/api/auth/');
 
   // 1. Handle protected routes
   if (!isAuthRoute) {
@@ -24,7 +24,7 @@ function simulateMiddleware(pathname, session, isValidSession) {
   }
 
   // 2. Handle login page redirect if already authenticated
-  if (pathname.startsWith('/login') && session) {
+  if ((pathname === '/login' || pathname.startsWith('/login/')) && session) {
     const isValid = isValidSession;
     if (isValid) {
       return { type: 'redirect', url: '/' };
@@ -53,6 +53,12 @@ const tests = [
   { pathname: '/api/data', session: null, isValid: false, expected: { type: 'json', status: 401, error: 'Unauthorized' } },
   { pathname: '/api/data', session: 'val', isValid: true, expected: { type: 'next' } },
   { pathname: '/api/data', session: 'val', isValid: false, expected: { type: 'json', status: 401, error: 'Unauthorized' } },
+
+  // Boundary condition tests: paths that should NOT be confused with /api or /api/auth
+  { pathname: '/apiary', session: null, isValid: false, expected: { type: 'redirect', url: '/login' } },
+  { pathname: '/api/authors', session: null, isValid: false, expected: { type: 'json', status: 401, error: 'Unauthorized' } },
+  { pathname: '/api/authors', session: 'val', isValid: true, expected: { type: 'next' } },
+  { pathname: '/login-page', session: null, isValid: false, expected: { type: 'redirect', url: '/login' } },
 ];
 
 tests.forEach((test, index) => {
