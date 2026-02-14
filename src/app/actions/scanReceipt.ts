@@ -15,7 +15,7 @@ const MAX_CATEGORIES = 100;
 const MAX_BASE64_SIZE = 10 * 1024 * 1024;
 
 // Base64 validation regex (allows data URL prefix or raw base64)
-const BASE64_REGEX = /^(?:data:image\/[a-z]+;base64,)?[A-Za-z0-9+/]*={0,2}$/;
+const BASE64_REGEX = /^(?:data:image\/[a-z]+;base64,)?[A-Za-z0-9+/]+={0,2}$/;
 
 const SCAN_TIMEOUT_MS = 25000; // 25 seconds
 
@@ -45,11 +45,6 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
     const finalCategories = uniqueCategories.length > 0
       ? uniqueCategories
       : [...DEFAULT_CATEGORIES];
-
-    // Runtime assertion to ensure finalCategories is never empty
-    if (finalCategories.length === 0) {
-      throw new Error('No valid categories available');
-    }
 
     // Create a dynamic schema to enforce the category list
     const ReceiptSchema = z.object({
