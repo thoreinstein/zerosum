@@ -41,18 +41,12 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
       base64Payload = base64Payload.slice(dataUrlPrefixMatch[0].length);
     }
 
-    // Additional base64 length validation: ensure payload length is valid after padding
+    // Additional base64 length validation: ensure payload length is valid
+    // Base64 strings must be divisible by 4, with remainder of 0, 2, or 3 (not 1)
     const remainder = base64Payload.length % 4;
     if (remainder === 1) {
       // This cannot be corrected by padding and indicates malformed base64
       throw new Error('Invalid base64 image format');
-    }
-    if (remainder !== 0) {
-      // Conceptually pad to the next multiple of 4 for validation purposes
-      const paddedPayload = base64Payload + '='.repeat(4 - remainder);
-      if (paddedPayload.length % 4 !== 0) {
-        throw new Error('Invalid base64 image format');
-      }
     }
     // Sanitize and validate categories to prevent prompt injection
     // Limit to MAX_CATEGORIES to prevent token overflow and cost issues
