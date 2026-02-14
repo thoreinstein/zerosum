@@ -63,9 +63,11 @@ const tests = [
 
   // Boundary condition tests: paths that should NOT be confused with /api or /api/auth
   { pathname: '/apiary', session: null, isValid: false, expected: { type: 'redirect', url: '/login' } },
+  { pathname: '/apiary', session: 'val', isValid: true, expected: { type: 'next' } },
   { pathname: '/api/authors', session: null, isValid: false, expected: { type: 'json', status: 401, error: 'Unauthorized' } },
   { pathname: '/api/authors', session: 'val', isValid: true, expected: { type: 'next' } },
   { pathname: '/login-page', session: null, isValid: false, expected: { type: 'redirect', url: '/login' } },
+  { pathname: '/login-page', session: 'val', isValid: true, expected: { type: 'next' } },
 ];
 
 tests.forEach((test, index) => {
