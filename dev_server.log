@@ -1,0 +1,13 @@
+
+> zerosum@0.1.0 dev
+> npx next dev --port 8000
+
+npm error code ETIMEDOUT
+npm error errno ETIMEDOUT
+npm error network request to https://registry.npmjs.org/next failed, reason:
+npm error network This is a problem related to network connectivity.
+npm error network In most cases you are behind a proxy or have bad network settings.
+npm error network
+npm error network If you are behind a proxy, please make sure that the
+npm error network 'proxy' config is set properly.  See: 'npm help config'
+npm error A complete log of this run can be found in: /home/jules/.npm/_logs/2026-02-13T17_20_27_256Z-debug-0.log

@@ -78,6 +78,11 @@ export async function scanReceipt(base64Image: string, categories: string[] = []
 
     const categoryListString = finalCategories.join(', ');
 
+    // Detect if the image is PNG or JPEG to maintain backward compatibility
+    // PNG starts with 'iVBORw' (base64 for \x89PNG)
+    const isPng = base64Image.startsWith('iVBORw');
+    const mimeType = isPng ? 'image/png' : 'image/jpeg';
+
     const generatePromise = ai.generate({
       model: gemini20Flash,
       config: {
