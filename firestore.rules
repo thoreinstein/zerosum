@@ -1,18 +1,95 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper: User is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: User matches the document path
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate Account
+    function isValidAccount(data) {
+      return data.name is string &&
+             data.type is string &&
+             (data.balance is number || data.balance is float || data.balance is int);
+    }
+
+    // Validate Category (Metadata only)
+    function isValidCategory(data) {
+      return data.name is string &&
+             data.color is string &&
+             data.hex is string &&
+             // Optional fields
+             (!('isRta' in data) || data.isRta is bool) &&
+             (!('isCcPayment' in data) || data.isCcPayment is bool) &&
+             (!('linkedAccountId' in data) || data.linkedAccountId is string) &&
+             (!('targetType' in data) || data.targetType == null || (data.targetType is string && data.targetType in ['monthly', 'balance', 'balance_by_date'])) &&
+             (!('targetAmount' in data) || data.targetAmount == null || data.targetAmount is number || data.targetAmount is float || data.targetAmount is int) &&
+             (!('targetDate' in data) || data.targetDate == null || data.targetDate is string);
+    }
+
+    // Validate Monthly Allocation
+    function isValidAllocation(data) {
+      return data.month is string &&
+             data.categoryId is string &&
+             (data.budgeted is number || data.budgeted is float || data.budgeted is int);
+    }
+
+    // Validate Transaction
+    function isValidTransaction(data) {
+      // Required
+      return data.date is string &&
+             data.payee is string &&
+             data.category is string &&
+             (data.amount is number || data.amount is float || data.amount is int) &&
+             data.accountId is string &&
+             // Optional/Computed fields that might be written
+             (!('status' in data) || (data.status is string && data.status in ['cleared', 'reconciled', 'uncleared'])) &&
+             (!('scanStatus' in data) || data.scanStatus == null || (data.scanStatus is string && data.scanStatus in ['pending', 'scanning', 'completed', 'failed'])) &&
+             (!('scanRetryCount' in data) || data.scanRetryCount == null || data.scanRetryCount is number || data.scanRetryCount is float || data.scanRetryCount is int) &&
+             (!('scanLastError' in data) || data.scanLastError == null || data.scanLastError is string);
+    }
+
+    // Match User Root
+    match /users/{userId} {
+      // Users can access their own document (read-only for root doc for now unless specific writes needed)
+      allow read: if isOwner(userId);
+      // No write allowed on the user document itself for now.
+
+      // Accounts
+      match /accounts/{accountId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidAccount(request.resource.data);
+      }
+
+      // Categories
+      match /categories/{categoryId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidCategory(request.resource.data);
+      }
+
+      // Monthly Allocations
+      match /monthly_allocations/{allocationId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidAllocation(request.resource.data);
+      }
+
+      // Transactions
+      match /transactions/{transactionId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidTransaction(request.resource.data);
+      }
+    }
+
+    // Explicitly deny everything else
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 3, 8);
+      allow read, write: if false;
     }
   }
 }
